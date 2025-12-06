@@ -1,22 +1,27 @@
 # ==========================
-# 1. Operating System Files
+# 1. Operating System & Editors
 # ==========================
 .DS_Store
 Thumbs.db
 desktop.ini
+.vscode/
+.idea/
 
 # ==========================
 # 2. Visual Studio 2022 (Backend)
 # ==========================
+# Hidden VS folder (contains huge IntelliSense database)
 .vs/
+# User-specific preferences (don't force your window layout on your friend)
 *.user
 *.suo
-*.ipch
-*.aps
-*.opendb
+*.opensdf
+*.sdf
+*.cache
 *.db
+*.opendb
 
-# Build Output Directories (Don't sync these!)
+# Build Output Directories (Root and inside backend)
 x64/
 x86/
 Debug/
@@ -24,44 +29,55 @@ Release/
 backend/x64/
 backend/Debug/
 backend/Release/
+backend/x86/
 
-# Intermediate build files
+# Intermediate Object Files
 *.obj
 *.pdb
 *.ilk
 *.idb
 *.pch
+*.tlog
+*.log
 
 # ==========================
-# 3. C++ Compilation Artifacts
+# 3. C++ Executables & Binaries
 # ==========================
-# Ignore executables (Your collaborator must compile their own!)
+# Your collaborator must compile their own .exe!
 *.exe
+*.dll
 *.out
 *.app
-*.dll
 
 # ==========================
 # 4. Node.js (Bridge & Frontend)
 # ==========================
-# The biggest folder - NEVER commit node_modules
+# NEVER commit node_modules
 node_modules/
 npm-debug.log
 yarn-error.log
+package-lock.json # Optional: Keep this if you want exact versions, otherwise remove this line to ignore it.
 
 # ==========================
-# 5. React / Vite Build Output
+# 5. React / Vite / Tailwind
 # ==========================
 dist/
 build/
+coverage/
+.env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.eslintcache
 
 # ==========================
-# 6. Exceptions (Keep these!)
+# 6. NovaCom Specific Data
 # ==========================
-# We DO want to track the text database files so your friend has data
+# generally ignore temp data
+backend/data/*.tmp
+
+# !!! IMPORTANT !!! 
+# We explicitly UN-IGNORE these files so your collaborator 
+# has the dummy data to test the app immediately.
 !backend/data/users.txt
 !backend/data/graph.txt
+!backend/data/communities.txt
+!backend/data/chats.json
