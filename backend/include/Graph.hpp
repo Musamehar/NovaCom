@@ -4,6 +4,10 @@
 #include <vector>
 #include <string>
 #include <iostream>
+#include <queue>
+#include <set>
+#include <map>
+#include <algorithm>
 
 using namespace std;
 
@@ -24,6 +28,13 @@ public:
     // --- Graph Operations ---
     void addUser(int id, string name);
     void addFriendship(int u, int v);
+	
+	 // --- NEW ALGORITHMS (PHASE 2) ---
+    // BFS: Find connections at a specific depth (e.g., 2 = Friends of Friends)
+    string getConnectionsByDegreeJSON(int startNode, int targetDegree);
+    
+    // Recommendations: Suggest friends based on mutuals
+    string getRecommendationsJSON(int userId);
 
     // --- API Responses (JSON Strings) ---
     string getUserJSON(int id);

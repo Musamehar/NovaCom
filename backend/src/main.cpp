@@ -2,10 +2,14 @@
 #include <iostream>
 #include <string>
 
+using namespace std;
+
 // COMMANDS:
 // backend.exe add_user <id> <name>
 // backend.exe add_friend <id1> <id2>
 // backend.exe get_friends <id>
+// backend.exe get_degrees <id> <degree>
+// backend.exe get_recommendations <id>
 
 int main(int argc, char* argv[]) {
     NovaGraph graph;
@@ -22,24 +26,30 @@ int main(int argc, char* argv[]) {
 
     if (command == "add_user") {
         if (argc < 4) return 1;
-        int id = stoi(argv[2]);
-        string name = argv[3];
-        graph.addUser(id, name);
+        graph.addUser(stoi(argv[2]), argv[3]);
         graph.saveData();
         cout << "{ \"status\": \"success\", \"message\": \"User added\" }" << endl;
     }
     else if (command == "add_friend") {
         if (argc < 4) return 1;
-        int u = stoi(argv[2]);
-        int v = stoi(argv[3]);
-        graph.addFriendship(u, v);
+        graph.addFriendship(stoi(argv[2]), stoi(argv[3]));
         graph.saveData();
         cout << "{ \"status\": \"success\", \"message\": \"Friendship added\" }" << endl;
     }
     else if (command == "get_friends") {
         if (argc < 3) return 1;
-        int id = stoi(argv[2]);
-        cout << graph.getFriendListJSON(id) << endl;
+        cout << graph.getFriendListJSON(stoi(argv[2])) << endl;
+    }
+    // --- NEW COMMANDS ---
+    else if (command == "get_degrees") {
+        // Usage: get_degrees <UserID> <Degree(2 or 3)>
+        if (argc < 4) return 1;
+        cout << graph.getConnectionsByDegreeJSON(stoi(argv[2]), stoi(argv[3])) << endl;
+    }
+    else if (command == "get_recommendations") {
+        // Usage: get_recommendations <UserID>
+        if (argc < 3) return 1;
+        cout << graph.getRecommendationsJSON(stoi(argv[2])) << endl;
     }
     else {
         cout << "{ \"error\": \"Unknown command\" }" << endl;
