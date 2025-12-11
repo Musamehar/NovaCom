@@ -78,8 +78,17 @@ void NovaGraph::addUser(int id, string name) {
 }
 
 void NovaGraph::addFriendship(int u, int v) {
+    if (u == v) return; // Cannot add yourself
+
+    // Check if friendship already exists to prevent duplicates
+    auto& uFriends = adjList[u];
+    if (find(uFriends.begin(), uFriends.end(), v) != uFriends.end()) {
+        return; // Already connected, do nothing
+    }
+
+    // Add connection
     adjList[u].push_back(v);
-    adjList[v].push_back(u); // Undirected graph
+    adjList[v].push_back(u);
 }
 
 // ==========================================

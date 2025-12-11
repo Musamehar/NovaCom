@@ -51,6 +51,11 @@ int main(int argc, char* argv[]) {
         if (argc < 3) return 1;
         cout << graph.getRecommendationsJSON(stoi(argv[2])) << endl;
     }
+	else if (command == "get_user") {
+        // Usage: backend.exe get_user <UserID>
+        if (argc < 3) return 1;
+        cout << graph.getUserJSON(stoi(argv[2])) << endl;
+    }
     else {
         cout << "{ \"error\": \"Unknown command\" }" << endl;
     }
