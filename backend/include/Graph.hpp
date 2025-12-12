@@ -36,6 +36,9 @@ public:
     void joinCommunity(int userId, int commId);
     void leaveCommunity(int userId, int commId);
     void addMessage(int commId, int senderId, string content);
+	
+	int getRelationDegree(int startNode, int targetNode);
+    void upvoteMessage(int commId, int msgIndex);
 
     // --- READ VIEWS (JSON) ---
     string getUserJSON(int id);

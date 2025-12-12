@@ -9,7 +9,8 @@ struct Message {
     int senderId;
     string senderName;
     string content;
-    string timestamp; // Simple string for now
+    string timestamp;
+    int upvotes = 0; // NEW: Defaults to 0
 };
 
 struct Community {
@@ -17,6 +18,6 @@ struct Community {
     string name;
     string description;
     vector<string> tags;
-    set<int> members; // IDs of users who joined
-    vector<Message> chatHistory; // The chat log
+    set<int> members;
+    vector<Message> chatHistory;
 };

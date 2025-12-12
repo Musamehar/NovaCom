@@ -1,16 +1,27 @@
 import React, { useEffect, useState } from 'react';
-import { callBackend } from '../api'; // Ensure api.js exists from previous steps
+import { callBackend } from '../api';
 import GlassCard from './GlassCard';
 
 const RecommendationList = ({ userId }) => {
   const [recs, setRecs] = useState([]);
 
-  useEffect(() => {
-    // Call C++: backend.exe get_recommendations <userId>
+  const fetchRecs = () => {
     callBackend('get_recommendations', [userId]).then((data) => {
       if (Array.isArray(data)) setRecs(data);
     });
+  };
+
+  useEffect(() => {
+    fetchRecs();
   }, [userId]);
+
+  // --- NEW FUNCTION ---
+  const handleConnect = async (targetId) => {
+    await callBackend('add_friend', [userId, targetId]);
+    // Remove the user from the list immediately to show feedback
+    setRecs(prev => prev.filter(u => u.id !== targetId));
+    alert("Connection established.");
+  };
 
   return (
     <GlassCard className="h-full">
@@ -30,9 +41,15 @@ const RecommendationList = ({ userId }) => {
                   {user.mutual_friends} Mutual Connections
                 </p>
               </div>
-              <button className="bg-cyan-supernova/10 text-cyan-supernova text-xs px-3 py-1 rounded hover:bg-cyan-supernova hover:text-black transition">
+              
+              {/* --- UPDATED BUTTON --- */}
+              <button 
+                onClick={() => handleConnect(user.id)}
+                className="bg-cyan-supernova/10 text-cyan-supernova text-xs px-3 py-1 rounded hover:bg-cyan-supernova hover:text-black transition"
+              >
                 Connect
               </button>
+              
             </div>
           ))}
         </div>

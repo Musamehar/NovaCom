@@ -85,6 +85,17 @@ int main(int argc, char* argv[]) {
         if (argc < 4) return 1;
         cout << graph.getCommunityDetailsJSON(stoi(argv[2]), stoi(argv[3])) << endl;
     }
+	else if (command == "get_relation") {
+        if (argc < 4) return 1;
+        int deg = graph.getRelationDegree(stoi(argv[2]), stoi(argv[3]));
+        cout << "{ \"degree\": " << deg << " }" << endl;
+    }
+    else if (command == "vote_message") {
+        if (argc < 4) return 1;
+        graph.upvoteMessage(stoi(argv[2]), stoi(argv[3]));
+        graph.saveData(); // Save the Karma
+        cout << "{ \"status\": \"voted\" }" << endl;
+    }
     else {
         cout << "{ \"error\": \"Unknown command\" }" << endl;
     }

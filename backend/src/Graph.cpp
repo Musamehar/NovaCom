@@ -2,7 +2,7 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
-#include <ctime> // <--- ADDED THIS to fix time error
+#include <ctime>
 
 // --- Helper to get Time ---
 string getCurrentTime() {
@@ -25,13 +25,14 @@ vector<string> NovaGraph::split(const string& s, char delimiter) {
 }
 
 // ==========================================
-// PERSISTENCE (LOAD/SAVE)
+// PERSISTENCE (LOAD/SAVE) - SAFE MODE
 // ==========================================
 
 void NovaGraph::loadData() {
-    string line; // <--- Declared ONCE here. Do not declare again below.
+    string line;
 
-    // 1. Load Users (Format: ID,Name)
+    // 1. Load Users (SAFE MODE)
+    // Supports both: "1,Alice" AND "1,Alice,50" (Backward Compatibility)
     ifstream userFile("data/users.txt");
     if (userFile.is_open()) {
         while (getline(userFile, line)) {
@@ -40,22 +41,44 @@ void NovaGraph::loadData() {
             if (parts.size() >= 2) {
                 int id = stoi(parts[0]);
                 string name = parts[1];
-                userDB[id] = { id, name, {}, {} };
+                int karma = 0;
+                
+                // Only try to load Karma if it exists in the file
+                if (parts.size() > 2) { 
+                    try { karma = stoi(parts[2]); } catch(...) { karma = 0; }
+                }
+
+                userDB[id] = { id, name, {}, {}, karma };
             }
         }
         userFile.close();
     }
 
-    // 2. Load Friendships (Format: ID,Friend1,Friend2...)
+    // 2. Load Graph (With Auto-Cleanup)
     ifstream graphFile("data/graph.txt");
     if (graphFile.is_open()) {
         while (getline(graphFile, line)) {
             if (line.empty()) continue;
             auto parts = split(line, ',');
             int id = stoi(parts[0]);
+            
+            // Temp vector to clean connections
+            vector<int> friends;
             for (size_t i = 1; i < parts.size(); i++) {
-                adjList[id].push_back(stoi(parts[i]));
+                int friendID = stoi(parts[i]);
+                
+                // RULE 1: No Self-Loops (Alice can't be friends with Alice)
+                if (friendID == id) continue;
+
+                friends.push_back(friendID);
             }
+
+            // RULE 2: Remove Duplicates
+            sort(friends.begin(), friends.end());
+            friends.erase(unique(friends.begin(), friends.end()), friends.end());
+
+            // Store the clean list
+            adjList[id] = friends;
         }
         graphFile.close();
     }
@@ -63,25 +86,25 @@ void NovaGraph::loadData() {
     // 3. Load Communities
     ifstream commFile("data/communities.txt");
     if (commFile.is_open()) {
-        while (getline(commFile, line)) { // Reuse 'line' variable
+        while (getline(commFile, line)) {
             if (line.empty()) continue;
-            auto parts = split(line, '|'); // Use pipe | as delimiter
+            auto parts = split(line, '|');
             if (parts.size() >= 4) {
                 Community c;
                 c.id = stoi(parts[0]);
                 c.name = parts[1];
                 c.description = parts[2];
                 
-                // Parse Tags (comma separated)
+                // Parse Tags
                 auto tagList = split(parts[3], ',');
                 for(auto t : tagList) c.tags.push_back(t);
 
-                // Parse Members (comma separated)
+                // Parse Members
                 if (parts.size() > 4 && parts[4] != "NULL") {
                     auto memList = split(parts[4], ',');
                     for(auto m : memList) c.members.insert(stoi(m));
                 }
-
+                
                 communityDB[c.id] = c;
                 if (c.id >= nextCommunityId) nextCommunityId = c.id + 1;
             }
@@ -91,16 +114,22 @@ void NovaGraph::loadData() {
 }
 
 void NovaGraph::saveData() {
-    // 1. Save Users
+    // 1. Save Users (NOW SAVES KARMA)
+    // This upgrades your file format automatically next time you run this
     ofstream userFile("data/users.txt");
     for (auto const& [id, user] : userDB) {
-        userFile << id << "," << user.name << "\n";
+        userFile << id << "," << user.name << "," << user.karma << "\n";
     }
     userFile.close();
 
     // 2. Save Graph
-    ofstream graphFile("data/graph.txt");
-    for (auto const& [id, friends] : adjList) {
+     ofstream graphFile("data/graph.txt");
+    for (auto& [id, friends] : adjList) {
+        // CLEAN BEFORE SAVING
+        sort(friends.begin(), friends.end());
+        friends.erase(unique(friends.begin(), friends.end()), friends.end());
+
+        // Write to file
         graphFile << id;
         for (int friendID : friends) {
             graphFile << "," << friendID;
@@ -139,7 +168,8 @@ void NovaGraph::saveData() {
 
 void NovaGraph::addUser(int id, string name) {
     if (userDB.find(id) != userDB.end()) return;
-    userDB[id] = { id, name, {}, {} };
+    // Default karma is 0 for new users
+    userDB[id] = { id, name, {}, {}, 0 }; 
 }
 
 void NovaGraph::addFriendship(int u, int v) {
@@ -178,7 +208,24 @@ void NovaGraph::addMessage(int commId, int senderId, string content) {
             m.senderName = userDB[senderId].name;
             m.content = content;
             m.timestamp = getCurrentTime();
+            m.upvotes = 0; // Initialize votes
             communityDB[commId].chatHistory.push_back(m);
+        }
+    }
+}
+
+void NovaGraph::upvoteMessage(int commId, int msgIndex) {
+    if (communityDB.find(commId) != communityDB.end()) {
+        Community& c = communityDB[commId];
+        // Check bounds
+        if (msgIndex >= 0 && msgIndex < c.chatHistory.size()) {
+            c.chatHistory[msgIndex].upvotes++;
+            
+            // Award Karma to Sender
+            int senderId = c.chatHistory[msgIndex].senderId;
+            if (userDB.find(senderId) != userDB.end()) {
+                userDB[senderId].karma += 5; // Reward logic: +5 Karma per like
+            }
         }
     }
 }
@@ -202,6 +249,7 @@ string NovaGraph::getAllCommunitiesJSON() {
     return json;
 }
 
+// UPDATED: Now includes Vote Counts and Index
 string NovaGraph::getCommunityDetailsJSON(int commId, int userId) {
     if (communityDB.find(commId) == communityDB.end()) return "{}";
     
@@ -216,9 +264,11 @@ string NovaGraph::getCommunityDetailsJSON(int commId, int userId) {
     
     for(size_t i=0; i<c.chatHistory.size(); i++) {
         Message& m = c.chatHistory[i];
-        json += "{ \"sender\": \"" + m.senderName + "\"" +
+        json += "{ \"index\": " + to_string(i) +  // Index needed for voting
+                ", \"sender\": \"" + m.senderName + "\"" +
                 ", \"content\": \"" + m.content + "\"" +
-                ", \"time\": \"" + m.timestamp + "\" }";
+                ", \"time\": \"" + m.timestamp + "\"" +
+                ", \"votes\": " + to_string(m.upvotes) + " }"; 
         if(i < c.chatHistory.size() - 1) json += ", ";
     }
     json += "] }";
@@ -226,8 +276,36 @@ string NovaGraph::getCommunityDetailsJSON(int commId, int userId) {
 }
 
 // ==========================================
-// ALGORITHMS (BFS & RECOMMENDATION)
+// ALGORITHMS (BFS, RECOMMENDATION, DEGREES)
 // ==========================================
+
+// BFS to find if User is 1st, 2nd, or 3rd degree
+int NovaGraph::getRelationDegree(int startNode, int targetNode) {
+    if (startNode == targetNode) return 0;
+    if (adjList.find(startNode) == adjList.end()) return -1;
+
+    queue<pair<int, int>> q;
+    q.push({ startNode, 0 });
+    set<int> visited;
+    visited.insert(startNode);
+
+    while (!q.empty()) {
+        auto [currentUser, depth] = q.front();
+        q.pop();
+
+        if (currentUser == targetNode) return depth;
+        // Optimization: Don't search beyond 3rd degree
+        if (depth >= 3) continue;
+
+        for (int neighbor : adjList[currentUser]) {
+            if (visited.find(neighbor) == visited.end()) {
+                visited.insert(neighbor);
+                q.push({ neighbor, depth + 1 });
+            }
+        }
+    }
+    return -1; // Not connected closely
+}
 
 string NovaGraph::getConnectionsByDegreeJSON(int startNode, int targetDegree) {
     if (userDB.find(startNode) == userDB.end()) return "[]";
@@ -316,13 +394,24 @@ string NovaGraph::getRecommendationsJSON(int userId) {
 
 string NovaGraph::getUserJSON(int id) {
     if (userDB.find(id) == userDB.end()) return "{}";
-    return "{ \"id\": " + to_string(id) + ", \"name\": \"" + userDB[id].name + "\" }";
+    // Now including Karma in the basic user view as well
+    User& u = userDB[id];
+    return "{ \"id\": " + to_string(id) + 
+           ", \"name\": \"" + u.name + "\"" + 
+           ", \"karma\": " + to_string(u.karma) + " }";
 }
 
 string NovaGraph::getFriendListJSON(int id) {
     string json = "[";
     if (adjList.find(id) != adjList.end()) {
-        const auto& friends = adjList[id];
+        // Create a copy of the friends list
+        vector<int> friends = adjList[id];
+
+        // FORCE CLEAN: Sort and Remove Duplicates
+        sort(friends.begin(), friends.end());
+        friends.erase(unique(friends.begin(), friends.end()), friends.end());
+
+        // Now iterate through the Clean List
         for (size_t i = 0; i < friends.size(); ++i) {
             User& f = userDB[friends[i]];
             json += "{ \"id\": " + to_string(f.id) + ", \"name\": \"" + f.name + "\" }";
