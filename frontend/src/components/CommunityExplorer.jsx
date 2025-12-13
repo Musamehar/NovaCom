@@ -25,7 +25,7 @@ const CommunityExplorer = ({ currentUserId, onJoin }) => {
 
   const handleCreate = async (e) => {
     e.preventDefault();
-    await callBackend('create_community', [newName, newDesc, newTags]);
+   await callBackend('create_community', [newName, newDesc, newTags, currentUserId]);
     setShowCreate(false);
     fetchComms(); // Refresh
   };

@@ -95,16 +95,26 @@ void NovaGraph::loadData() {
                 c.name = parts[1];
                 c.description = parts[2];
                 
-                // Parse Tags
                 auto tagList = split(parts[3], ',');
                 for(auto t : tagList) c.tags.push_back(t);
 
-                // Parse Members
                 if (parts.size() > 4 && parts[4] != "NULL") {
                     auto memList = split(parts[4], ',');
                     for(auto m : memList) c.members.insert(stoi(m));
                 }
-                
+
+                // NEW: Load Moderators (Index 5)
+                if (parts.size() > 5 && parts[5] != "NULL") {
+                    auto modList = split(parts[5], ',');
+                    for(auto m : modList) c.moderators.insert(stoi(m));
+                }
+
+                // NEW: Load Banned Users (Index 6)
+                if (parts.size() > 6 && parts[6] != "NULL") {
+                    auto banList = split(parts[6], ',');
+                    for(auto b : banList) c.bannedUsers.insert(stoi(b));
+                }
+
                 communityDB[c.id] = c;
                 if (c.id >= nextCommunityId) nextCommunityId = c.id + 1;
             }
@@ -144,18 +154,30 @@ void NovaGraph::saveData() {
         commFile << c.id << "|" << c.name << "|" << c.description << "|";
         
         // Tags
-        for(size_t i=0; i<c.tags.size(); i++) 
-            commFile << c.tags[i] << (i < c.tags.size()-1 ? "," : "");
+        for(size_t i=0; i<c.tags.size(); i++) commFile << c.tags[i] << (i < c.tags.size()-1 ? "," : "");
         commFile << "|";
 
         // Members
         if(c.members.empty()) commFile << "NULL";
         else {
             int i = 0;
-            for(int m : c.members) {
-                commFile << m << (i < c.members.size()-1 ? "," : "");
-                i++;
-            }
+            for(int m : c.members) { commFile << m << (i < c.members.size()-1 ? "," : ""); i++; }
+        }
+        commFile << "|";
+
+        // NEW: Moderators
+        if(c.moderators.empty()) commFile << "NULL";
+        else {
+            int i = 0;
+            for(int m : c.moderators) { commFile << m << (i < c.moderators.size()-1 ? "," : ""); i++; }
+        }
+        commFile << "|";
+
+        // NEW: Banned Users
+        if(c.bannedUsers.empty()) commFile << "NULL";
+        else {
+            int i = 0;
+            for(int m : c.bannedUsers) { commFile << m << (i < c.bannedUsers.size()-1 ? "," : ""); i++; }
         }
         commFile << "\n";
     }
@@ -185,18 +207,46 @@ void NovaGraph::addFriendship(int u, int v) {
 // COMMUNITY LOGIC
 // ==========================================
 
-void NovaGraph::createCommunity(string name, string desc, string tags) {
+// FIXED: Now accepts creatorId to set them as the first Moderator
+void NovaGraph::createCommunity(string name, string desc, string tags, int creatorId) {
     Community c;
     c.id = nextCommunityId++;
     c.name = name;
     c.description = desc;
     c.tags = split(tags, ',');
+    
+    // Auto-join and Auto-Mod
+    c.members.insert(creatorId);
+    c.moderators.insert(creatorId);
+    
     communityDB[c.id] = c;
 }
 
+// FIXED: Includes logic to block Banned Users
 void NovaGraph::joinCommunity(int userId, int commId) {
     if (communityDB.find(commId) != communityDB.end()) {
-        communityDB[commId].members.insert(userId);
+        Community& c = communityDB[commId];
+
+        // 1. REJECT if banned
+        if (c.bannedUsers.count(userId)) return;
+        
+        // 2. Add to Members
+        c.members.insert(userId);
+
+        // 3. ABANDONED COMMUNITY CLAIM
+        // If there are no moderators (e.g., everyone left), the new joiner inherits the community.
+        if (c.moderators.empty()) {
+            c.moderators.insert(userId);
+
+            // Optional: Announce the new leader
+            Message sysMsg;
+            sysMsg.senderId = -1;
+            sysMsg.senderName = "NOVA SYSTEM";
+            sysMsg.content = "Community reclaimed. User " + to_string(userId) + " is now the Moderator.";
+            sysMsg.timestamp = getCurrentTime();
+            sysMsg.isPinned = true;
+            c.chatHistory.push_back(sysMsg);
+        }
     }
 }
 
@@ -208,24 +258,9 @@ void NovaGraph::addMessage(int commId, int senderId, string content) {
             m.senderName = userDB[senderId].name;
             m.content = content;
             m.timestamp = getCurrentTime();
-            m.upvotes = 0; // Initialize votes
+            m.isPinned = false; 
+            m.upvotes = 0;
             communityDB[commId].chatHistory.push_back(m);
-        }
-    }
-}
-
-void NovaGraph::upvoteMessage(int commId, int msgIndex) {
-    if (communityDB.find(commId) != communityDB.end()) {
-        Community& c = communityDB[commId];
-        // Check bounds
-        if (msgIndex >= 0 && msgIndex < c.chatHistory.size()) {
-            c.chatHistory[msgIndex].upvotes++;
-            
-            // Award Karma to Sender
-            int senderId = c.chatHistory[msgIndex].senderId;
-            if (userDB.find(senderId) != userDB.end()) {
-                userDB[senderId].karma += 5; // Reward logic: +5 Karma per like
-            }
         }
     }
 }
@@ -249,30 +284,100 @@ string NovaGraph::getAllCommunitiesJSON() {
     return json;
 }
 
-// UPDATED: Now includes Vote Counts and Index
+void NovaGraph::leaveCommunity(int userId, int commId) {
+    if (communityDB.find(commId) != communityDB.end()) {
+        Community& c = communityDB[commId];
+
+        // 1. Remove from Members
+        c.members.erase(userId);
+        
+        // 2. Handle Moderator Logic
+        if (c.moderators.count(userId)) {
+            c.moderators.erase(userId); // Remove the leaver from mods
+
+            // 3. SUCCESSION: If there are NO moderators left, promote the next member
+            if (c.moderators.empty() && !c.members.empty()) {
+                // *c.members.begin() grabs the first person in the set (Lowest ID / Oldest Member)
+                int newModId = *c.members.begin();
+                c.moderators.insert(newModId);
+                
+                // Optional: Add a system message to chat announcing the new leader
+                Message sysMsg;
+                sysMsg.senderId = -1; // System ID
+                sysMsg.senderName = "NOVA SYSTEM";
+                sysMsg.content = "Moderator left. User " + to_string(newModId) + " has been promoted.";
+                sysMsg.timestamp = getCurrentTime();
+                sysMsg.isPinned = true;
+                c.chatHistory.push_back(sysMsg);
+            }
+        }
+    }
+}
+
 string NovaGraph::getCommunityDetailsJSON(int commId, int userId) {
     if (communityDB.find(commId) == communityDB.end()) return "{}";
     
     Community& c = communityDB[commId];
     bool isMember = c.members.count(userId);
+    bool isMod = c.moderators.count(userId); // Check if viewing user is mod
 
     string json = "{ \"id\": " + to_string(c.id) + 
                   ", \"name\": \"" + c.name + "\"" +
                   ", \"desc\": \"" + c.description + "\"" +
                   ", \"is_member\": " + (isMember ? "true" : "false") + 
+                  ", \"is_mod\": " + (isMod ? "true" : "false") + 
                   ", \"messages\": [";
     
     for(size_t i=0; i<c.chatHistory.size(); i++) {
         Message& m = c.chatHistory[i];
-        json += "{ \"index\": " + to_string(i) +  // Index needed for voting
+        json += "{ \"index\": " + to_string(i) + 
                 ", \"sender\": \"" + m.senderName + "\"" +
+                ", \"senderId\": " + to_string(m.senderId) +
                 ", \"content\": \"" + m.content + "\"" +
                 ", \"time\": \"" + m.timestamp + "\"" +
-                ", \"votes\": " + to_string(m.upvotes) + " }"; 
+                ", \"votes\": " + to_string(m.upvotes) + 
+                ", \"pinned\": " + (m.isPinned ? "true" : "false") + " }";
         if(i < c.chatHistory.size() - 1) json += ", ";
     }
     json += "] }";
     return json;
+}
+
+// ==========================================
+// MODERATION ACTIONS
+// ==========================================
+
+void NovaGraph::banUser(int commId, int adminId, int targetId) {
+    if (communityDB.find(commId) == communityDB.end()) return;
+    Community& c = communityDB[commId];
+
+    // Verify Admin rights
+    if (c.moderators.count(adminId)) {
+        c.members.erase(targetId);      // Kick
+        c.bannedUsers.insert(targetId); // Ban
+    }
+}
+
+void NovaGraph::deleteMessage(int commId, int adminId, int msgIndex) {
+    if (communityDB.find(commId) == communityDB.end()) return;
+    Community& c = communityDB[commId];
+
+    if (c.moderators.count(adminId)) {
+        if (msgIndex >= 0 && msgIndex < c.chatHistory.size()) {
+            c.chatHistory.erase(c.chatHistory.begin() + msgIndex);
+        }
+    }
+}
+
+void NovaGraph::pinMessage(int commId, int adminId, int msgIndex) {
+    if (communityDB.find(commId) == communityDB.end()) return;
+    Community& c = communityDB[commId];
+
+    if (c.moderators.count(adminId)) {
+        if (msgIndex >= 0 && msgIndex < c.chatHistory.size()) {
+            c.chatHistory[msgIndex].isPinned = !c.chatHistory[msgIndex].isPinned;
+        }
+    }
 }
 
 // ==========================================
@@ -386,6 +491,26 @@ string NovaGraph::getRecommendationsJSON(int userId) {
     }
     json += "]";
     return json;
+}
+
+// ==========================================
+// VOTING LOGIC (MISSING)
+// ==========================================
+void NovaGraph::upvoteMessage(int commId, int msgIndex) {
+    if (communityDB.find(commId) != communityDB.end()) {
+        Community& c = communityDB[commId];
+        // Check bounds
+        if (msgIndex >= 0 && msgIndex < c.chatHistory.size()) {
+            // Increment vote
+            c.chatHistory[msgIndex].upvotes++;
+            
+            // Award Karma to Sender
+            int senderId = c.chatHistory[msgIndex].senderId;
+            if (userDB.find(senderId) != userDB.end()) {
+                userDB[senderId].karma += 5; 
+            }
+        }
+    }
 }
 
 // ==========================================

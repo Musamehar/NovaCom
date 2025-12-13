@@ -32,13 +32,18 @@ public:
     void addFriendship(int u, int v);
 
     // --- COMMUNITY OPS ---
-    void createCommunity(string name, string desc, string tags);
+    void createCommunity(string name, string desc, string tags, int creatorId);
     void joinCommunity(int userId, int commId);
     void leaveCommunity(int userId, int commId);
     void addMessage(int commId, int senderId, string content);
 	
 	int getRelationDegree(int startNode, int targetNode);
     void upvoteMessage(int commId, int msgIndex);
+	
+    // New Mod functions
+    void banUser(int commId, int adminId, int targetId);
+    void deleteMessage(int commId, int adminId, int msgIndex);
+    void pinMessage(int commId, int adminId, int msgIndex);
 
     // --- READ VIEWS (JSON) ---
     string getUserJSON(int id);
