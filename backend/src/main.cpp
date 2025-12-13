@@ -31,6 +31,39 @@ int main(int argc, char* argv[]) {
         cout << "{ \"status\": \"success\", \"message\": \"User added\" }" << endl;
     }
 	
+	 // AUTH
+    else if (command == "register") {
+        // register <username> <email> <password> <avatar> <tags>
+        if (argc < 7) return 1;
+        int newId = graph.registerUser(argv[2], argv[3], argv[4], argv[5], argv[6]);
+        if (newId == -1) cout << "{ \"error\": \"Username taken\" }" << endl;
+        else cout << "{ \"id\": " << newId << ", \"status\": \"success\" }" << endl;
+    }
+    else if (command == "login") {
+        // login <username> <password>
+        if (argc < 4) return 1;
+        int id = graph.loginUser(argv[2], argv[3]);
+        if (id == -1) cout << "{ \"error\": \"Invalid credentials\" }" << endl;
+        else cout << "{ \"id\": " << id << ", \"status\": \"success\" }" << endl;
+    }
+    else if (command == "update_profile") {
+        // update_profile <id> <email> <avatar> <tags>
+        if (argc < 6) return 1;
+        graph.updateUserProfile(stoi(argv[2]), argv[3], argv[4], argv[5]);
+        cout << "{ \"status\": \"updated\" }" << endl;
+    }
+    
+    // SEARCH & EXPLORE
+    else if (command == "search_users") {
+        // search_users <query> <tag>
+        string q = (argc > 2) ? argv[2] : "";
+        string t = (argc > 3) ? argv[3] : "All";
+        cout << graph.searchUsersJSON(q, t) << endl;
+    }
+    else if (command == "get_popular") {
+        cout << graph.getPopularCommunitiesJSON() << endl;
+    }
+	
     else if (command == "add_friend") {
         if (argc < 4) return 1;
         graph.addFriendship(stoi(argv[2]), stoi(argv[3]));
@@ -110,12 +143,9 @@ int main(int argc, char* argv[]) {
     }
 	
 	else if (command == "create_community") {
-        // We need 6 arguments now: Program, Command, Name, Desc, Tags, CreatorID
-        if (argc < 6) return 1;
-        
-        // Notice the 4th argument here: stoi(argv[5])
-        graph.createCommunity(argv[2], argv[3], argv[4], stoi(argv[5]));
-        
+        // create_community <Name> <Desc> <Tags> <CreatorID> <CoverUrl>
+        if (argc < 7) return 1;
+        graph.createCommunity(argv[2], argv[3], argv[4], stoi(argv[5]), argv[6]);
         graph.saveData();
         cout << "{ \"status\": \"success\" }" << endl;
     }

@@ -7,8 +7,13 @@ using namespace std;
 
 struct User {
     int id;
-    string name;
-    vector<string> interests;
+    string username; // Changed from 'name' to 'username' for clarity
+    string email;
+    string password;
+    string avatarUrl; // URL to image
+    vector<string> tags; // Gaming, Anime, etc.
+    
+    // Existing fields
     unordered_set<int> joinedCommunities;
-    int karma = 0; // NEW: Defaults to 0
+    int karma = 0;
 };
