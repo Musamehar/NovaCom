@@ -69,12 +69,19 @@ int main(int argc, char* argv[]) {
         cout << "{ \"status\": \"joined\" }" << endl;
     }
 	
-    else if (command == "send_message") {
+   else if (command == "send_message") {
         // send_message <commId> <senderId> <content>
+        // Note: If content has spaces, argv will split it. We need to combine argv[4]...argv[end]
         if (argc < 5) return 1;
-        graph.addMessage(stoi(argv[2]), stoi(argv[3]), argv[4]);
-        // Note: Chat history is in memory for now. 
-        // To save chat to file, you'd add that to saveData(), but let's keep it simple.
+        
+        // Combine all remaining arguments into one message string
+        string content = argv[4];
+        for (int i = 5; i < argc; ++i) {
+            content += " " + string(argv[i]);
+        }
+
+        graph.addMessage(stoi(argv[2]), stoi(argv[3]), content);
+        // Note: addMessage now calls saveData() internally
         cout << "{ \"status\": \"sent\" }" << endl;
     }
 	

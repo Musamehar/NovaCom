@@ -24,6 +24,13 @@ vector<string> NovaGraph::split(const string& s, char delimiter) {
     return tokens;
 }
 
+// Helper: Clean message content for file storage
+string sanitize(string input) {
+    replace(input.begin(), input.end(), '\n', ' '); // Remove newlines
+    replace(input.begin(), input.end(), '|', ' ');  // Remove pipes
+    return input;
+}
+
 // ==========================================
 // PERSISTENCE (LOAD/SAVE) - SAFE MODE
 // ==========================================
@@ -121,6 +128,40 @@ void NovaGraph::loadData() {
         }
         commFile.close();
     }
+	
+	// 4. Load Chats (Format: CommID|SenderID|SenderName|Time|Votes|Pinned|Content)
+    ifstream chatFile("data/chats.txt");
+    if (chatFile.is_open()) {
+        while (getline(chatFile, line)) {
+            if (line.empty()) continue;
+            auto parts = split(line, '|');
+            
+            // We expect at least 7 parts. 
+            // Note: If content contained spaces, split is fine. 
+            if (parts.size() >= 7) {
+                int commId = stoi(parts[0]);
+                
+                // Only add if community exists
+                if (communityDB.find(commId) != communityDB.end()) {
+                    Message m;
+                    m.senderId = stoi(parts[1]);
+                    m.senderName = parts[2];
+                    m.timestamp = parts[3];
+                    try { m.upvotes = stoi(parts[4]); } catch (...) { m.upvotes = 0; }
+                    m.isPinned = (parts[5] == "1");
+                    m.content = parts[6];
+                    
+                    // If content had pipes that split accidentally, rejoin them (Safety)
+                    for (size_t i = 7; i < parts.size(); i++) {
+                        m.content += " " + parts[i];
+                    }
+
+                    communityDB[commId].chatHistory.push_back(m);
+                }
+            }
+        }
+        chatFile.close();
+    }
 }
 
 void NovaGraph::saveData() {
@@ -182,7 +223,43 @@ void NovaGraph::saveData() {
         commFile << "\n";
     }
     commFile.close();
+	
+	// 4. Save Chats
+    ofstream chatFile("data/chats.txt");
+    for (auto const& [commId, comm] : communityDB) {
+        for (const auto& msg : comm.chatHistory) {
+            chatFile << commId << "|"
+                     << msg.senderId << "|"
+                     << msg.senderName << "|"
+                     << msg.timestamp << "|"
+                     << msg.upvotes << "|"
+                     << (msg.isPinned ? "1" : "0") << "|"
+                     << sanitize(msg.content) << "\n";
+        }
+    }
+    chatFile.close();
 }
+
+
+void NovaGraph::addMessage(int commId, int senderId, string content) {
+    if (communityDB.find(commId) != communityDB.end()) {
+        if (communityDB[commId].members.count(senderId)) {
+            Message m;
+            m.senderId = senderId;
+            m.senderName = userDB[senderId].name;
+            m.content = sanitize(content); // Clean it before adding
+            m.timestamp = getCurrentTime();
+            m.upvotes = 0;
+            m.isPinned = false;
+            
+            communityDB[commId].chatHistory.push_back(m);
+            
+            // SAVE IMMEDIATELY
+            saveData(); 
+        }
+    }
+}
+
 
 // ==========================================
 // GRAPH & USER LOGIC
@@ -250,20 +327,6 @@ void NovaGraph::joinCommunity(int userId, int commId) {
     }
 }
 
-void NovaGraph::addMessage(int commId, int senderId, string content) {
-    if (communityDB.find(commId) != communityDB.end()) {
-        if (communityDB[commId].members.count(senderId)) {
-            Message m;
-            m.senderId = senderId;
-            m.senderName = userDB[senderId].name;
-            m.content = content;
-            m.timestamp = getCurrentTime();
-            m.isPinned = false; 
-            m.upvotes = 0;
-            communityDB[commId].chatHistory.push_back(m);
-        }
-    }
-}
 
 string NovaGraph::getAllCommunitiesJSON() {
     string json = "[";

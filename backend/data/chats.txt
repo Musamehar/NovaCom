@@ -1,0 +1,4 @@
+100|7|Aqib|06:20|3|0|Hi Everyone
+100|6|Frank|06:21|0|0|Hehe
+100|8|Musa|06:22|0|0|Love you biqa
+100|-1|NOVA SYSTEM|06:22|0|1|Moderator left. User 6 has been promoted.
