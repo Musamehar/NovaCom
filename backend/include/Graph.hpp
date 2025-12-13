@@ -44,6 +44,8 @@ public:
     void banUser(int commId, int adminId, int targetId);
     void deleteMessage(int commId, int adminId, int msgIndex);
     void pinMessage(int commId, int adminId, int msgIndex);
+	
+	string getGraphVisualJSON();
 
     // --- READ VIEWS (JSON) ---
     string getUserJSON(int id);

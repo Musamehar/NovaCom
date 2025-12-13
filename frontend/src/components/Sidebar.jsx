@@ -35,6 +35,15 @@ const Sidebar = ({ activeTab, setActiveTab, joinedCommunities = [], onCommunityC
         <div className="mt-6 px-6 mb-2">
           <p className="text-xs text-gray-500 font-bold uppercase tracking-wider hidden md:block">My Nebulas</p>
         </div>
+		
+		{/* Graph Map Button */}
+        <button 
+          onClick={() => setActiveTab('map')}
+          className={`w-full flex items-center px-6 py-3 transition-all border-l-4 ${activeTab === 'map' ? 'border-pink-500 bg-pink-500/10 text-white' : 'border-transparent text-gray-400 hover:text-white hover:bg-white/5'}`}
+        >
+          <span className="text-xl">🌌</span>
+          <span className="ml-4 font-montserrat font-bold hidden md:block">Galaxy Map</span>
+        </button>
 
         {/* Joined Communities List */}
         {joinedCommunities.map(c => (

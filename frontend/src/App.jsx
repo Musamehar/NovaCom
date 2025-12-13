@@ -6,6 +6,7 @@ import UserSearch from './components/UserSearch';
 import CommunityExplorer from './components/CommunityExplorer';
 import CommunityChat from './components/CommunityChat';
 import { callBackend } from './api';
+import NetworkMap from './components/NetworkMap';
 
 function App() {
   const [currentUserId, setCurrentUserId] = useState(1);
@@ -94,7 +95,13 @@ function App() {
                />
             </div>
         )}
-
+		
+		 {/* VIEW: VISUAL MAP */}
+        {activeTab === 'map' && (
+           <div className="h-[calc(100vh-4rem)] animate-fade-in">
+             <NetworkMap />
+           </div>
+        )}
       </div>
     </div>
   );

@@ -494,7 +494,7 @@ string NovaGraph::getRecommendationsJSON(int userId) {
 }
 
 // ==========================================
-// VOTING LOGIC (MISSING)
+// VOTING LOGIC 
 // ==========================================
 void NovaGraph::upvoteMessage(int commId, int msgIndex) {
     if (communityDB.find(commId) != communityDB.end()) {
@@ -511,6 +511,45 @@ void NovaGraph::upvoteMessage(int commId, int msgIndex) {
             }
         }
     }
+}
+
+string NovaGraph::getGraphVisualJSON() {
+    string json = "{ \"nodes\": [";
+    
+    // 1. Export Nodes (Users)
+    int count = 0;
+    for (auto const& [id, user] : userDB) {
+        if (count > 0) json += ", ";
+        // We add 'val' to determine node size based on friend count
+        int friendCount = adjList[id].size();
+        json += "{ \"id\": " + to_string(id) + 
+                ", \"name\": \"" + user.name + "\"" +
+                ", \"val\": " + to_string(friendCount + 1) + " }"; // +1 so 0 friends still shows
+        count++;
+    }
+    json += "], \"links\": [";
+
+    // 2. Export Links (Friendships)
+    count = 0;
+    set<string> processedEdges; // To avoid A-B and B-A duplicates in visual
+    
+    for (auto const& [u, friends] : adjList) {
+        for (int v : friends) {
+            // Create unique key for edge (min-max) to avoid duplicates
+            int minId = min(u, v);
+            int maxId = max(u, v);
+            string edgeKey = to_string(minId) + "-" + to_string(maxId);
+
+            if (processedEdges.find(edgeKey) == processedEdges.end()) {
+                if (count > 0) json += ", ";
+                json += "{ \"source\": " + to_string(u) + ", \"target\": " + to_string(v) + " }";
+                processedEdges.insert(edgeKey);
+                count++;
+            }
+        }
+    }
+    json += "] }";
+    return json;
 }
 
 // ==========================================

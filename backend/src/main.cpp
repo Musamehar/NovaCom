@@ -142,6 +142,10 @@ int main(int argc, char* argv[]) {
         cout << "{ \"status\": \"pinned\" }" << endl;
     }
 	
+	else if (command == "get_visual_graph") {
+        cout << graph.getGraphVisualJSON() << endl;
+    }
+	
     else {
         cout << "{ \"error\": \"Unknown command\" }" << endl;
     }
