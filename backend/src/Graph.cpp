@@ -1,4 +1,5 @@
 #include "../include/Graph.hpp"
+#include "../include/DirectChat.hpp" 
 #include <fstream>
 #include <sstream>
 #include <algorithm>
@@ -44,6 +45,11 @@ string sanitize(string input) {
     replace(input.begin(), input.end(), '\n', ' ');
     replace(input.begin(), input.end(), '|', ' ');
     return input;
+}
+
+string getDMKey(int u, int v) {
+    if (u < v) return to_string(u) + "_" + to_string(v);
+    return to_string(v) + "_" + to_string(u);
 }
 
 // ==========================================
@@ -165,7 +171,37 @@ void NovaGraph::loadData() {
         }
         chatFile.close();
     }
+	
+	// 5. Load DMs (New)
+    // Format: Key|MsgID|SenderID|Time|ReplyID|Reaction|IsSeen|Content
+    ifstream dmFile("data/dms.txt");
+    if (dmFile.is_open()) {
+        string line;
+        while (getline(dmFile, line)) {
+            auto parts = split(line, '|');
+            if (parts.size() >= 8) {
+                string key = parts[0];
+                DirectMessage m;
+                m.id = safeStoi(parts[1]);
+                m.senderId = safeStoi(parts[2]);
+                m.timestamp = parts[3];
+                m.replyToMsgId = safeStoi(parts[4]);
+                m.reaction = (parts[5] == "NONE") ? "" : parts[5];
+                m.isSeen = (parts[6] == "1");
+                m.content = parts[7];
+                // Reassemble content if pipes existed
+                for (size_t i = 8; i < parts.size(); i++) m.content += " " + parts[i];
+
+                dmDB[key].chatKey = key;
+                dmDB[key].messages.push_back(m);
+                // Ensure ID counter is correct
+                if (m.id >= dmDB[key].nextMsgId) dmDB[key].nextMsgId = m.id + 1;
+            }
+        }
+        dmFile.close();
+    }
 }
+
 
 void NovaGraph::saveData() {
     // 1. Save Users
@@ -223,6 +259,22 @@ void NovaGraph::saveData() {
         }
     }
     chatFile.close();
+	
+	// 5. Save DMs
+    ofstream dmFile("data/dms.txt");
+    for (auto const& [key, chat] : dmDB) {
+        for (const auto& m : chat.messages) {
+            dmFile << key << "|"
+                   << m.id << "|"
+                   << m.senderId << "|"
+                   << m.timestamp << "|"
+                   << m.replyToMsgId << "|"
+                   << (m.reaction.empty() ? "NONE" : m.reaction) << "|"
+                   << (m.isSeen ? "1" : "0") << "|"
+                   << sanitize(m.content) << "\n";
+        }
+    }
+    dmFile.close();
 }
 
 // ==========================================
@@ -637,5 +689,135 @@ string NovaGraph::getPopularCommunitiesJSON() {
         json += "{ \"id\": " + to_string(c.id) + ", \"name\": \"" + jsonEscape(c.name) + "\", \"members\": " + to_string(c.members.size()) + ", \"cover\": \"" + jsonEscape(c.coverUrl) + "\" }";
     }
     json += "]";
+    return json;
+}
+
+string NovaGraph::getActiveDMsJSON(int userId) {
+    string json = "[";
+    int count = 0;
+
+    for (auto const& [key, chat] : dmDB) {
+        // Parse Key (e.g. "1_2")
+        size_t underscore = key.find('_');
+        if (underscore == string::npos) continue;
+        
+        int u = safeStoi(key.substr(0, underscore));
+        int v = safeStoi(key.substr(underscore + 1));
+
+        int otherId = -1;
+        if (u == userId) otherId = v;
+        else if (v == userId) otherId = u;
+
+        if (otherId != -1) {
+            // Found a chat involving me
+            if (userDB.find(otherId) != userDB.end()) {
+                User& other = userDB[otherId];
+                
+                // Get last message preview
+                string lastMsg = "No messages yet";
+                string time = "";
+                if (!chat.messages.empty()) {
+                    lastMsg = chat.messages.back().content;
+                    time = chat.messages.back().timestamp;
+                    if (lastMsg.length() > 30) lastMsg = lastMsg.substr(0, 30) + "...";
+                }
+
+                if (count > 0) json += ", ";
+                json += "{ \"id\": " + to_string(other.id) + 
+                        ", \"name\": \"" + jsonEscape(other.username) + "\"" +
+                        ", \"avatar\": \"" + jsonEscape(other.avatarUrl) + "\"" +
+                        ", \"last_msg\": \"" + jsonEscape(lastMsg) + "\"" +
+                        ", \"time\": \"" + time + "\" }";
+                count++;
+            }
+        }
+    }
+    json += "]";
+    return json;
+}
+
+// ==========================================
+// DIRECT MESSAGING LOGIC
+// ==========================================
+
+void NovaGraph::sendDirectMessage(int senderId, int receiverId, string content, int replyToId) {
+    string key = getDMKey(senderId, receiverId);
+    
+    DirectMessage m;
+    m.id = dmDB[key].nextMsgId++; // Auto-increment
+    m.senderId = senderId;
+    m.content = sanitize(content);
+    m.timestamp = getCurrentTime();
+    m.replyToMsgId = replyToId; // Store metadata
+    m.reaction = "";
+    m.isSeen = false;
+
+    dmDB[key].chatKey = key;
+    dmDB[key].messages.push_back(m);
+    saveData();
+}
+
+void NovaGraph::reactToDirectMessage(int senderId, int receiverId, int msgId, string reaction) {
+    string key = getDMKey(senderId, receiverId);
+    if (dmDB.find(key) != dmDB.end()) {
+        for (auto& m : dmDB[key].messages) {
+            if (m.id == msgId) {
+                m.reaction = reaction;
+                saveData();
+                return;
+            }
+        }
+    }
+}
+
+string NovaGraph::getDirectChatJSON(int viewerId, int friendId) {
+    string key = getDMKey(viewerId, friendId);
+    
+    // 1. MARK SEEN LOGIC
+    // If I am viewing the chat, mark all messages from FRIEND as seen
+    bool stateChanged = false;
+    if (dmDB.find(key) != dmDB.end()) {
+        for (auto& m : dmDB[key].messages) {
+            if (m.senderId == friendId && !m.isSeen) {
+                m.isSeen = true;
+                stateChanged = true;
+            }
+        }
+    }
+    if (stateChanged) saveData(); // Persist the read receipts
+
+    // 2. GENERATE JSON
+    string json = "{ \"friend_id\": " + to_string(friendId) + ", \"messages\": [";
+    
+    if (dmDB.find(key) != dmDB.end()) {
+        const auto& msgs = dmDB[key].messages;
+        for (size_t i = 0; i < msgs.size(); ++i) {
+            const auto& m = msgs[i];
+            
+            // Resolve Reply Content (Preview)
+            string replyPreview = "";
+            if (m.replyToMsgId != -1) {
+                // Find original message
+                for (const auto& orig : msgs) {
+                    if (orig.id == m.replyToMsgId) {
+                        replyPreview = sanitize(orig.content.substr(0, 30)); // First 30 chars
+                        break;
+                    }
+                }
+            }
+
+            json += "{ \"id\": " + to_string(m.id) + 
+                    ", \"senderId\": " + to_string(m.senderId) + 
+                    ", \"content\": \"" + m.content + "\"" +
+                    ", \"time\": \"" + m.timestamp + "\"" +
+                    ", \"replyTo\": " + to_string(m.replyToMsgId) + 
+                    ", \"replyPreview\": \"" + replyPreview + "\"" +
+                    ", \"reaction\": \"" + m.reaction + "\"" +
+                    ", \"isSeen\": " + (m.isSeen ? "true" : "false") + " }";
+            
+            if (i < msgs.size() - 1) json += ", ";
+        }
+    }
+    json += "] }";
     return json;
 }

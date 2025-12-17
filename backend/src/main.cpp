@@ -131,6 +131,31 @@ int main(int argc, char* argv[]) {
         graph.transferOwnership(stoi(argv[2]), stoi(argv[3]), stoi(argv[4]));
         cout << "{ \"status\": \"transferred\" }" << endl;
     }
+	else if (command == "send_dm") {
+        // send_dm <sender> <receiver> <replyToID> <content...>
+        if (argc < 6) return 1;
+        int replyId = stoi(argv[4]); // -1 if none
+        string content = argv[5];
+        for (int i = 6; i < argc; ++i) content += " " + string(argv[i]);
+        
+        graph.sendDirectMessage(stoi(argv[2]), stoi(argv[3]), content, replyId);
+        cout << "{ \"status\": \"sent\" }" << endl;
+    }
+    else if (command == "get_dm") {
+        // get_dm <viewer> <friend>
+        if (argc < 4) return 1;
+        cout << graph.getDirectChatJSON(stoi(argv[2]), stoi(argv[3])) << endl;
+    }
+    else if (command == "react_dm") {
+        // react_dm <sender> <receiver> <msgId> <reaction>
+        if (argc < 6) return 1;
+        graph.reactToDirectMessage(stoi(argv[2]), stoi(argv[3]), stoi(argv[4]), argv[5]);
+        cout << "{ \"status\": \"reacted\" }" << endl;
+    }
+	else if (command == "get_my_dms") {
+        if (argc < 3) return 1;
+        cout << graph.getActiveDMsJSON(stoi(argv[2])) << endl;
+    }
     else {
         cout << "{ \"error\": \"Unknown command: " << command << "\" }" << endl;
     }

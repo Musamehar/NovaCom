@@ -93,6 +93,18 @@ const FriendsPage = ({ currentUserId, onNavigate }) => {
                             <div className="text-xs text-yellow-400">✨ {f.karma} Reputation</div>
                             <div className="text-xs text-green-400 mt-1">● Connected</div>
                         </div>
+
+                        {/* NEW MESSAGE BUTTON ADDED HERE */}
+                        <button 
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onNavigate(`dm_${f.id}_${f.name}`); // Pass ID and Name in route
+                            }}
+                            className="ml-auto bg-white/10 hover:bg-white/20 text-white text-xs px-3 py-1 rounded border border-white/20"
+                        >
+                            Message ✉
+                        </button>
+
                     </GlassCard>
                   </div>
               ))}

@@ -1,6 +1,7 @@
 #pragma once
 #include "User.hpp"
 #include "Community.hpp"
+#include "DirectChat.hpp" 
 #include <unordered_map>
 #include <vector>
 #include <string>
@@ -18,6 +19,7 @@ private:
     unordered_map<string, int> usernameIndex;
     unordered_map<int, vector<int>> adjList;
     unordered_map<int, Community> communityDB;
+	unordered_map<string, DirectChat> dmDB;
     int nextCommunityId = 100;
 
     vector<string> split(const string& s, char delimiter);
@@ -50,6 +52,11 @@ public:
     void promoteToAdmin(int commId, int actorId, int targetId);
     void demoteAdmin(int commId, int actorId, int targetId);
     void transferOwnership(int commId, int actorId, int targetId);
+	
+	// DIRECT MESSAGING
+    void sendDirectMessage(int senderId, int receiverId, string content, int replyToId = -1);
+    void reactToDirectMessage(int senderId, int receiverId, int msgId, string reaction);
+
 
     // VIEWS
     string getUserJSON(int id);
@@ -64,6 +71,9 @@ public:
     
     // MEMBER LIST (Updated to show admins/bans)
     string getCommunityMembersJSON(int commId);
-    
+	
+	// Fetches chat AND marks unseen messages from the other person as 'Seen'
+    string getDirectChatJSON(int viewerId, int friendId);
+    string getActiveDMsJSON(int userId);
     int getRelationDegree(int startNode, int targetNode);
 };
