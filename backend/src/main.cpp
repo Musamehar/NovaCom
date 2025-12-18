@@ -96,11 +96,16 @@ int main(int argc, char* argv[]) {
         cout << graph.getCommunityMembersJSON(stoi(argv[2])) << endl;
     }
     else if (command == "send_message") {
-        if (argc < 5) return 1;
-        string content = argv[4];
-        for (int i = 5; i < argc; ++i) content += " " + string(argv[i]);
-        // Default text message
-        graph.addMessage(stoi(argv[2]), stoi(argv[3]), content, "text", -1);
+        // send_message <commId> <senderId> <replyToId> <content...>
+        if (argc < 6) return 1;
+        
+        int replyToId = stoi(argv[4]);
+        
+        string content = argv[5];
+        for (int i = 6; i < argc; ++i) content += " " + string(argv[i]);
+        
+        // Pass "text" as type (default)
+        graph.addMessage(stoi(argv[2]), stoi(argv[3]), content, "text", replyToId);
         cout << "{ \"status\": \"sent\" }" << endl;
     }
     else if (command == "search_users") {

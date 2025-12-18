@@ -1,99 +1,67 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { callBackend } from '../api';
 
-// FIX: Added 'onAbout' to the props list below
 const CommunityChat = ({ commId, currentUserId, onLeave, onAbout }) => {
   const [details, setDetails] = useState(null);
   const [messages, setMessages] = useState([]);
   const [pinnedMessages, setPinnedMessages] = useState([]);
   const [msgInput, setMsgInput] = useState("");
   
+  // REPLY STATE
+  const [replyTarget, setReplyTarget] = useState(null); 
+
   // Pagination State
   const [offset, setOffset] = useState(0);
   const [totalMsgs, setTotalMsgs] = useState(0);
   const [loading, setLoading] = useState(false);
   const MSG_LIMIT = 50;
 
-  // Refs for Scroll Management
+  // Refs
   const scrollContainerRef = useRef(null);
   const prevScrollHeight = useRef(0);
   const isAtBottom = useRef(true);
   const loadingHistory = useRef(false);
 
-  // 1. Fetch Latest Data (Polled)
+  // 1. Fetch Latest
   const fetchLatest = async () => {
-    // Prevent polling if we are currently loading old history to avoid jumps
     if (loadingHistory.current) return;
 
     const data = await callBackend('get_community', [commId, currentUserId, 0, MSG_LIMIT]);
     if (data && data.id) {
         setDetails(data);
         setTotalMsgs(data.total_msgs);
-        
-        // Extract Pinned Messages
-        const visiblePins = data.messages.filter(m => m.pinned);
-        setPinnedMessages(visiblePins); 
-        
-        // Only replace messages if we are viewing the latest block (Offset 0)
-        if (offset === 0) {
-            setMessages(data.messages);
-        }
+        setPinnedMessages(data.messages.filter(m => m.pinned)); 
+        if (offset === 0) setMessages(data.messages);
     }
   };
 
-  // 2. Setup Polling
   useEffect(() => {
-    setOffset(0); 
-    isAtBottom.current = true; // Snap to bottom on open
-    fetchLatest();
-    
-    const interval = setInterval(() => {
-        if (offset === 0) fetchLatest(); 
-    }, 2000);
+    setOffset(0); isAtBottom.current = true; fetchLatest();
+    const interval = setInterval(() => { if (offset === 0) fetchLatest(); }, 2000);
     return () => clearInterval(interval);
   }, [commId]);
 
-  // 3. Scroll Position Maintenance
   useLayoutEffect(() => {
     if (!scrollContainerRef.current) return;
     const { scrollHeight } = scrollContainerRef.current;
-
-    // If we were at the bottom, stay there (for new incoming messages)
-    if (isAtBottom.current) {
-        scrollContainerRef.current.scrollTop = scrollHeight;
-    } 
-    // If we just loaded history, maintain visual position relative to new content
+    if (isAtBottom.current) scrollContainerRef.current.scrollTop = scrollHeight;
     else if (prevScrollHeight.current > 0) {
-        const heightDiff = scrollHeight - prevScrollHeight.current;
-        scrollContainerRef.current.scrollTop = heightDiff;
+        scrollContainerRef.current.scrollTop = scrollHeight - prevScrollHeight.current;
         prevScrollHeight.current = 0;
     }
   }, [messages]);
 
-  // 4. Handle Scroll Logic (Reverse Pagination)
   const handleScroll = async (e) => {
     const { scrollTop, scrollHeight, clientHeight } = e.target;
-    
-    // Determine if user is near bottom
     const atBottom = scrollHeight - scrollTop - clientHeight < 50;
     isAtBottom.current = atBottom;
 
-    // Detect Top of Scroll -> Load Older Messages
     if (scrollTop === 0 && messages.length < totalMsgs && !loading && !loadingHistory.current) {
-        setLoading(true);
-        loadingHistory.current = true;
-        prevScrollHeight.current = scrollHeight; // Capture height before update
-
+        setLoading(true); loadingHistory.current = true; prevScrollHeight.current = scrollHeight;
         const newOffset = offset + MSG_LIMIT;
         const data = await callBackend('get_community', [commId, currentUserId, newOffset, MSG_LIMIT]);
-        
-        if (data && data.messages.length > 0) {
-            setMessages(prev => [...data.messages, ...prev]); // Prepend old messages
-            setOffset(newOffset);
-        }
-        
-        setLoading(false);
-        loadingHistory.current = false;
+        if (data && data.messages.length > 0) { setMessages(prev => [...data.messages, ...prev]); setOffset(newOffset); }
+        setLoading(false); loadingHistory.current = false;
     }
   };
 
@@ -102,41 +70,35 @@ const CommunityChat = ({ commId, currentUserId, onLeave, onAbout }) => {
   const handleSend = async (e) => {
     e.preventDefault();
     if (!msgInput.trim()) return;
-    await callBackend('send_message', [commId, currentUserId, msgInput]);
+    
+    // UPDATED: Include Reply ID
+    const replyId = replyTarget ? replyTarget.index : -1;
+    await callBackend('send_message', [commId, currentUserId, replyId, msgInput]);
+    
     setMsgInput("");
-    setOffset(0); // Reset to latest
-    isAtBottom.current = true;
+    setReplyTarget(null); // Clear reply
+    setOffset(0); 
+    isAtBottom.current = true; 
     fetchLatest();
   };
 
   const handleLeaveCommunity = async () => {
-    if (window.confirm(`Are you sure you want to leave ${details.name}?`)) {
-        await callBackend('leave_community', [currentUserId, commId]);
-        onLeave(); 
-    }
+    if (window.confirm(`Leave ${details.name}?`)) { await callBackend('leave_community', [currentUserId, commId]); onLeave(); }
   };
 
-  // Mod / Interact Actions
   const handleVote = async (index) => { await callBackend('vote_message', [commId, currentUserId, index]); fetchLatest(); };
   const handlePin = async (index) => { await callBackend('mod_pin', [commId, currentUserId, index]); fetchLatest(); };
-  const handleDelete = async (index) => { if(window.confirm("Delete this transmission?")) { await callBackend('mod_delete', [commId, currentUserId, index]); fetchLatest(); }};
-  const handleBan = async (targetId) => { if(window.confirm(`Ban User ID ${targetId}?`)) { await callBackend('mod_ban', [commId, currentUserId, targetId]); fetchLatest(); }};
-  
-  const handleUnban = async () => {
-     const targetId = prompt("Enter User ID to Unban:");
-     if (targetId) {
-         await callBackend('mod_unban', [commId, currentUserId, targetId]);
-         alert("User ID " + targetId + " unbanned (if previously banned).");
-     }
-  };
+  const handleDelete = async (index) => { if(window.confirm("Delete?")) { await callBackend('mod_delete', [commId, currentUserId, index]); fetchLatest(); }};
+  const handleBan = async (targetId) => { if(window.confirm(`Ban User ${targetId}?`)) { await callBackend('mod_ban', [commId, currentUserId, targetId]); fetchLatest(); }};
+  const handleUnban = async () => { const t = prompt("User ID to Unban:"); if (t) { await callBackend('mod_unban', [commId, currentUserId, t]); alert("Done."); }};
 
-  if (!details) return <div className="text-white text-center mt-10 animate-pulse">Loading frequency...</div>;
+  if (!details) return <div className="text-white text-center mt-10 animate-pulse">Loading...</div>;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] relative">
+    <div className="flex flex-col h-[calc(100vh-4rem)] relative bg-void-black/50">
       
       {/* HEADER */}
-      <div className="flex justify-between items-center p-4 border-b border-white/10 bg-void-black/80 backdrop-blur z-20">
+      <div className="flex justify-between items-center p-4 border-b border-white/10 bg-void-black/80 backdrop-blur z-20 shrink-0">
         <div>
           <h2 className="text-xl font-orbitron text-white flex items-center gap-2">
             <span className="text-cyan-supernova">#</span> {details.name}
@@ -144,53 +106,23 @@ const CommunityChat = ({ commId, currentUserId, onLeave, onAbout }) => {
           </h2>
           <p className="text-xs text-gray-400">{details.desc}</p>
         </div>
-        
         <div className="flex items-center gap-3">
-            {/* About Button */}
-            <button 
-                onClick={onAbout} 
-                className="bg-white/10 hover:bg-white/20 text-white text-xs px-3 py-1 rounded border border-white/10 transition"
-            >
-                About
-            </button>
-
-            {details.is_mod && (
-                <button onClick={handleUnban} className="bg-gray-700 hover:bg-gray-600 text-xs text-white px-3 py-1 rounded border border-white/10">
-                    Bans
-                </button>
-            )}
-
-            {details.is_member && (
-                <button 
-                    onClick={handleLeaveCommunity} 
-                    className="bg-red-500/10 hover:bg-red-500/30 text-red-400 hover:text-red-200 text-xs px-3 py-1 rounded border border-red-500/30 transition"
-                >
-                    Leave
-                </button>
-            )}
-
-            <button onClick={onLeave} className="text-gray-400 hover:text-white text-sm px-2">
-                ✕
-            </button>
+            <button onClick={onAbout} className="bg-white/10 hover:bg-white/20 text-white text-xs px-3 py-1 rounded border border-white/10">About</button>
+            {details.is_mod && <button onClick={handleUnban} className="bg-gray-700 hover:bg-gray-600 text-xs text-white px-3 py-1 rounded border border-white/10">Bans</button>}
+            {details.is_member && <button onClick={handleLeaveCommunity} className="bg-red-500/10 hover:bg-red-500/30 text-red-400 hover:text-red-200 text-xs px-3 py-1 rounded border border-red-500/30 transition">Leave</button>}
+            <button onClick={onLeave} className="text-gray-400 hover:text-white text-sm px-2">✕</button>
         </div>
       </div>
 
-      {/* PINNED MESSAGES DRAWER */}
+      {/* PINNED MESSAGES */}
       {pinnedMessages.length > 0 && (
-        <div className="bg-void-black/90 border-b border-cyan-supernova/30 p-2 z-10 shadow-lg shadow-cyan-supernova/5">
-             <div className="flex items-center gap-2 text-cyan-supernova text-xs font-bold uppercase mb-1">
-                <span>📌 Pinned</span>
-             </div>
+        <div className="bg-void-black/90 border-b border-cyan-supernova/30 p-2 z-10 shadow-lg shadow-cyan-supernova/5 shrink-0">
+             <div className="flex items-center gap-2 text-cyan-supernova text-xs font-bold uppercase mb-1"><span>📌 Pinned</span></div>
              <div className="flex flex-col gap-1 max-h-20 overflow-y-auto scrollbar-none">
                 {pinnedMessages.map((m, i) => (
                     <div key={i} className="text-sm text-white truncate flex justify-between items-center bg-white/5 p-1 rounded">
-                         <span className="truncate w-11/12">
-                             <span className="font-bold text-gray-400 mr-2">{m.sender}:</span> 
-                             {m.content}
-                         </span>
-                         {details.is_mod && (
-                             <button onClick={() => handlePin(m.index)} className="text-[10px] text-red-400 hover:text-white ml-2">Unpin</button>
-                         )}
+                         <span className="truncate w-11/12"><span className="font-bold text-gray-400 mr-2">{m.sender}:</span> {m.content}</span>
+                         {details.is_mod && <button onClick={() => handlePin(m.index)} className="text-[10px] text-red-400 hover:text-white ml-2">Unpin</button>}
                     </div>
                 ))}
              </div>
@@ -198,93 +130,113 @@ const CommunityChat = ({ commId, currentUserId, onLeave, onAbout }) => {
       )}
 
       {/* CHAT SCROLL AREA */}
-      <div 
-        ref={scrollContainerRef}
-        onScroll={handleScroll}
-        className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-gray-700"
-      >
+      <div ref={scrollContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-thin scrollbar-thumb-gray-700">
         {loading && <div className="text-center text-xs text-cyan-supernova animate-pulse pb-2">Retrieving Archives...</div>}
         
         {messages.map((m, idx) => {
             const isMe = m.senderId === parseInt(currentUserId);
             return (
-              <div key={`${m.index}-${idx}`} className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
+              <div key={`${m.id}-${idx}`} className={`flex w-full ${isMe ? "justify-end" : "justify-start"}`}>
                  
-                 {/* Metadata: Name + Ban Button */}
-                 <div className={`flex items-center gap-2 mb-1 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
-                    <span className={`text-xs font-bold ${isMe ? "text-cyan-supernova" : "text-cosmic-purple"}`}>{m.sender}</span>
-                    {details.is_mod && !isMe && (
-                        <button onClick={() => handleBan(m.senderId)} className="text-[10px] text-red-500 border border-red-500/30 px-1 rounded hover:bg-red-500/10">BAN</button>
-                    )}
-                 </div>
-                 
-                 {/* Message Container */}
-                 <div className={`flex items-end gap-2 group relative ${isMe ? "flex-row-reverse" : "flex-row"}`}>
+                 {/* Message Row */}
+                 <div className={`flex max-w-[85%] gap-3 group items-end ${isMe ? "flex-row-reverse" : "flex-row"}`}>
                     
                     {/* AVATAR */}
                     <div className="w-8 h-8 rounded-full bg-black border border-white/10 overflow-hidden flex-shrink-0">
-                        {m.senderAvatar ? (
-                            <img src={m.senderAvatar} className="w-full h-full object-cover" alt="pic" />
+                        {m.senderAvatar && m.senderAvatar !== "NULL" ? (
+                            <img src={m.senderAvatar} className="w-full h-full object-cover" alt="p" />
                         ) : (
-                            <div className="w-full h-full flex items-center justify-center text-[10px] text-gray-500 font-bold">
-                                {m.sender[0]}
-                            </div>
+                            <div className="w-full h-full flex items-center justify-center text-[10px] text-gray-500 font-bold">{m.sender[0]}</div>
                         )}
                     </div>
 
-                    {/* Bubble */}
-                    <div className={`px-4 py-2 rounded-lg max-w-[70%] break-words relative shadow-lg ${m.pinned ? "border-l-4 border-l-cyan-supernova bg-cyan-supernova/5" : ""} ${isMe ? "bg-cyan-supernova/10 border border-cyan-supernova/30 text-white" : "bg-white/5 border border-white/10 text-gray-200"}`}>
-                      {m.content}
+                    {/* BUBBLE WRAPPER */}
+                    <div className={`relative flex flex-col ${isMe ? "items-end" : "items-start"}`}>
+                        
+                        {/* SENDER NAME */}
+                        {!isMe && <div className="text-[10px] text-gray-400 ml-1 mb-0.5">{m.sender}</div>}
+
+                        {/* REPLY PREVIEW (Integrated visually) */}
+                        {m.replyTo > -1 && (
+                            <div className={`text-xs p-2 mb-1 rounded-lg border-l-2 opacity-80 ${isMe ? "bg-white/10 border-white/50 text-gray-300" : "bg-gray-800 border-gray-500 text-gray-400"}`}>
+                                <span className="opacity-60 text-[10px] uppercase block mb-0.5">Replying to:</span>
+                                <span className="italic line-clamp-1 max-w-[200px]">"{m.replyPreview || "Message unavailable"}"</span>
+                            </div>
+                        )}
+
+                        {/* MAIN CONTENT */}
+                        <div className={`px-4 py-2 text-sm shadow-lg backdrop-blur-sm 
+                            ${m.pinned ? "border-2 border-cyan-supernova/50 shadow-[0_0_10px_rgba(0,240,255,0.2)]" : ""} 
+                            ${isMe 
+                                ? "bg-cyan-supernova/10 border border-cyan-supernova/30 text-white rounded-2xl rounded-tr-none" 
+                                : "bg-white/5 border border-white/10 text-gray-200 rounded-2xl rounded-tl-none"
+                            }
+                        `}>
+                            {m.content}
+                        </div>
+
+                        {/* METADATA */}
+                        <div className="absolute -bottom-5 w-full flex justify-between px-1 min-w-[60px]">
+                            <span className="text-[10px] text-gray-500">{m.time}</span>
+                            {m.votes > 0 && <span className="text-[10px] font-bold text-gray-400">▲ {m.votes}</span>}
+                        </div>
                     </div>
 
-                    {/* Hover Tools (Vote/Pin/Delete) */}
-                    <div className={`flex flex-col items-center opacity-0 group-hover:opacity-100 transition duration-200 ${isMe ? "items-end" : "items-start"}`}>
-                         {details.is_mod && (
-                            <div className="flex gap-1 mb-1 bg-black/50 p-1 rounded backdrop-blur">
-                                <button onClick={() => handlePin(m.index)} title={m.pinned ? "Unpin" : "Pin"} className="text-xs hover:scale-110 transition">📌</button>
-                                <button onClick={() => handleDelete(m.index)} title="Delete" className="text-xs text-red-500 hover:scale-110 transition">🗑️</button>
+                    {/* HOVER TOOLS (Flex Item) */}
+                    <div className={`flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity ${isMe ? "items-end" : "items-start"}`}>
+                         
+                         {/* Reply Button */}
+                         <button 
+                            onClick={() => setReplyTarget({ index: m.id, content: m.content })} // NOTE: Using ID now!
+                            className="p-1.5 text-gray-500 hover:text-cyan-supernova hover:bg-white/5 rounded-full"
+                            title="Reply"
+                         >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg>
+                         </button>
+
+                         <button onClick={() => handleVote(m.index)} className={`p-1.5 rounded-full ${m.has_voted ? "text-cyan-supernova" : "text-gray-500 hover:text-white"}`}>▲</button>
+                         
+                         {/* MOD TOOLS */}
+                         {(details.is_mod || isMe) && (
+                            <div className="flex flex-col gap-1 mt-1">
+                                {details.is_mod && <button onClick={() => handlePin(m.index)} className="text-xs text-gray-500 hover:text-yellow-400">📌</button>}
+                                <button onClick={() => handleDelete(m.index)} className="text-xs text-gray-500 hover:text-red-500">🗑️</button>
+                                {details.is_mod && !isMe && <button onClick={() => handleBan(m.senderId)} className="text-[10px] text-red-500 font-bold">BAN</button>}
                             </div>
                          )}
-                         <div className="flex flex-col items-center">
-                             <button 
-                                onClick={() => handleVote(m.index)} 
-                                className={`text-xs transition hover:scale-125 ${m.has_voted ? "text-cyan-supernova" : "text-gray-500"}`}
-                             >
-                                ▲
-                             </button>
-                             <span className="text-[10px] font-bold text-gray-400">{m.votes}</span>
-                         </div>
                     </div>
+
                  </div>
               </div>
             );
         })}
       </div>
 
-      {/* INPUT AREA */}
-      <div className="p-4 bg-void-black/80 border-t border-white/10">
+      {/* REPLY CONTEXT BAR (Above Input) */}
+      {replyTarget && (
+          <div className="bg-black/80 border-t border-cyan-supernova/30 p-2 px-4 flex justify-between items-center animate-slide-up backdrop-blur shrink-0">
+              <div className="text-xs text-gray-300 pl-2 border-l-2 border-cyan-supernova">
+                  <span className="text-cyan-supernova font-bold mr-2">Replying to:</span> 
+                  <span className="italic opacity-80 line-clamp-1">{replyTarget.content}</span>
+              </div>
+              <button onClick={() => setReplyTarget(null)} className="text-gray-500 hover:text-white hover:bg-white/10 rounded-full p-1 transition">✕</button>
+          </div>
+      )}
+
+      {/* INPUT */}
+      <div className="p-4 bg-void-black/80 border-t border-white/10 shrink-0">
         {details.is_member ? (
           <form onSubmit={handleSend} className="flex gap-2">
             <input 
               className="flex-1 bg-deep-void p-3 rounded-lg border border-white/10 text-white focus:border-cyan-supernova outline-none placeholder-gray-600 transition"
-              placeholder={`Message #${details.name}...`}
+              placeholder={replyTarget ? "Type your reply..." : `Message #${details.name}...`}
               value={msgInput}
               onChange={e => setMsgInput(e.target.value)}
             />
-            <button type="submit" className="bg-cyan-supernova text-black font-bold px-6 rounded-lg hover:bg-cyan-supernova/80 shadow-lg shadow-cyan-supernova/20 transition">
-                SEND
-            </button>
+            <button type="submit" className="bg-cyan-supernova text-black font-bold px-6 rounded-lg hover:bg-cyan-supernova/80 shadow-lg shadow-cyan-supernova/20 transition">SEND</button>
           </form>
         ) : (
-             <div className="text-center">
-                 <span className="text-gray-400 text-sm mr-4">You are viewing as a guest.</span>
-                 <button 
-                    onClick={() => callBackend('join_community', [currentUserId, commId]).then(fetchLatest)} 
-                    className="bg-green-500 text-black font-bold px-6 py-2 rounded shadow-lg hover:scale-105 transition"
-                 >
-                    JOIN CHANNEL
-                 </button>
-             </div>
+             <div className="text-center"><button onClick={() => callBackend('join_community', [currentUserId, commId]).then(fetchLatest)} className="bg-green-500 text-black font-bold px-6 py-2 rounded">JOIN CHANNEL</button></div>
         )}
       </div>
     </div>

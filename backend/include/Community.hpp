@@ -7,21 +7,17 @@
 using namespace std;
 
 struct Message {
-    int id;
+    int id = 0; // Ensure ID exists and defaults to 0
     int senderId;
     string senderName;
     string content;
     string timestamp;
     set<int> upvoters;
     bool isPinned = false;
-    
-    // NEW FIELDS (Fixed compilation errors)
     int replyToId = -1; 
-    string type = "text"; // "text", "image", "poll"
-    
-    // POLL DATA
+    string type = "text";
     vector<string> pollOptions;
-    map<int, set<int>> pollVotes; // OptionIndex -> Set of UserIDs
+    map<int, set<int>> pollVotes;
 };
 
 struct Community {
@@ -36,4 +32,6 @@ struct Community {
     set<int> moderators;
     set<int> admins;
     set<int> bannedUsers;
+    
+    int nextMsgId = 1; // NEW: Track message IDs
 };
