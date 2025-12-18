@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import Notifications from './components/Notifications';
 import Sidebar from './components/Sidebar';
 import LoginPage from './components/LoginPage';
 import CommunityExplorer from './components/CommunityExplorer';
@@ -79,6 +80,12 @@ function App() {
                 onNavigate={handleNavigate}
                 onLogout={handleLogout} // <--- PASSED HERE
             />
+        )}
+		 {/* VIEW: NOTIFICATIONS */}
+        {activeTab === 'notifications' && (
+            <div className="animate-fade-in">
+                <Notifications currentUserId={currentUserId} />
+            </div>
         )}
 
         {activeTab.startsWith('dm_') && (

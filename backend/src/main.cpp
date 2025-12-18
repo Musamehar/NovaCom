@@ -23,20 +23,43 @@ int main(int argc, char* argv[]) {
         if (id == -1) cout << "{ \"error\": \"Invalid credentials\" }" << endl;
         else cout << "{ \"id\": " << id << ", \"status\": \"success\" }" << endl;
     }
+    else if (command == "get_user") {
+        if (argc < 3) return 1;
+        cout << graph.getUserJSON(stoi(argv[2])) << endl;
+    }
     else if (command == "update_profile") {
         if (argc < 6) return 1;
         graph.updateUserProfile(stoi(argv[2]), argv[3], argv[4], argv[5]);
         cout << "{ \"status\": \"updated\" }" << endl;
     }
-    else if (command == "get_user") {
+    else if (command == "delete_user") {
         if (argc < 3) return 1;
-        cout << graph.getUserJSON(stoi(argv[2])) << endl;
+        graph.deleteUser(stoi(argv[2]));
+        cout << "{ \"status\": \"deleted\" }" << endl;
     }
-    else if (command == "add_friend") {
+    else if (command == "send_request") {
         if (argc < 4) return 1;
-        graph.addFriendship(stoi(argv[2]), stoi(argv[3]));
-        graph.saveData();
-        cout << "{ \"status\": \"success\" }" << endl;
+        string status = graph.sendConnectionRequest(stoi(argv[2]), stoi(argv[3]));
+        cout << "{ \"status\": \"" << status << "\" }" << endl;
+    }
+    else if (command == "accept_request") {
+        if (argc < 4) return 1;
+        graph.acceptConnectionRequest(stoi(argv[2]), stoi(argv[3]));
+        cout << "{ \"status\": \"accepted\" }" << endl;
+    }
+    else if (command == "decline_request") {
+        if (argc < 4) return 1;
+        graph.declineConnectionRequest(stoi(argv[2]), stoi(argv[3]));
+        cout << "{ \"status\": \"declined\" }" << endl;
+    }
+    else if (command == "get_pending_requests") {
+        if (argc < 3) return 1;
+        cout << graph.getPendingRequestsJSON(stoi(argv[2])) << endl;
+    }
+    else if (command == "get_relationship") {
+        if (argc < 4) return 1;
+        // Output: { "status": "friend" } or { "status": "pending_sent" } etc.
+        cout << "{ \"status\": \"" << graph.getRelationshipStatus(stoi(argv[2]), stoi(argv[3])) << "\" }" << endl;
     }
     else if (command == "get_friends") {
         if (argc < 3) return 1;
@@ -76,7 +99,8 @@ int main(int argc, char* argv[]) {
         if (argc < 5) return 1;
         string content = argv[4];
         for (int i = 5; i < argc; ++i) content += " " + string(argv[i]);
-        graph.addMessage(stoi(argv[2]), stoi(argv[3]), content);
+        // Default text message
+        graph.addMessage(stoi(argv[2]), stoi(argv[3]), content, "text", -1);
         cout << "{ \"status\": \"sent\" }" << endl;
     }
     else if (command == "search_users") {
@@ -88,7 +112,6 @@ int main(int argc, char* argv[]) {
         cout << graph.getPopularCommunitiesJSON() << endl;
     }
     else if (command == "get_visual_graph") {
-        // THIS IS THE CRITICAL COMMAND FOR THE MAP
         cout << graph.getGraphVisualJSON() << endl;
     }
     else if (command == "vote_message") {
@@ -131,38 +154,29 @@ int main(int argc, char* argv[]) {
         graph.transferOwnership(stoi(argv[2]), stoi(argv[3]), stoi(argv[4]));
         cout << "{ \"status\": \"transferred\" }" << endl;
     }
-	else if (command == "send_dm") {
-        // send_dm <sender> <receiver> <replyToID> <content...>
+    else if (command == "send_dm") {
         if (argc < 6) return 1;
-        int replyId = stoi(argv[4]); // -1 if none
+        int replyId = stoi(argv[4]);
         string content = argv[5];
         for (int i = 6; i < argc; ++i) content += " " + string(argv[i]);
-        
         graph.sendDirectMessage(stoi(argv[2]), stoi(argv[3]), content, replyId);
         cout << "{ \"status\": \"sent\" }" << endl;
     }
     else if (command == "get_dm") {
-        // get_dm <viewer> <friend>
         if (argc < 4) return 1;
         cout << graph.getDirectChatJSON(stoi(argv[2]), stoi(argv[3])) << endl;
     }
     else if (command == "react_dm") {
-        // react_dm <sender> <receiver> <msgId> <reaction>
         if (argc < 6) return 1;
         graph.reactToDirectMessage(stoi(argv[2]), stoi(argv[3]), stoi(argv[4]), argv[5]);
         cout << "{ \"status\": \"reacted\" }" << endl;
     }
-	else if (command == "get_my_dms") {
+    else if (command == "get_my_dms") {
         if (argc < 3) return 1;
         cout << graph.getActiveDMsJSON(stoi(argv[2])) << endl;
     }
-	 else if (command == "delete_user") {
-        if (argc < 3) return 1;
-        graph.deleteUser(stoi(argv[2]));
-        cout << "{ \"status\": \"deleted\" }" << endl;
-    }
     else {
-        cout << "{ \"error\": \"Unknown command: " << command << "\" }" << endl;
+        cout << "{ \"error\": \"Unknown command\" }" << endl;
     }
 
     return 0;

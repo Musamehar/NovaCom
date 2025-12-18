@@ -1,25 +1,26 @@
 #pragma once
 #include "User.hpp"
 #include "Community.hpp"
-#include "DirectChat.hpp" 
-#include <unordered_map>
+#include "DirectChat.hpp"
+#include <map>          // Changed from unordered_map to map for sorted keys
 #include <vector>
 #include <string>
 #include <iostream>
 #include <queue>
 #include <set>
-#include <map>
 #include <algorithm>
 
 using namespace std;
 
 class NovaGraph {
 private:
-    unordered_map<int, User> userDB;
-    unordered_map<string, int> usernameIndex;
-    unordered_map<int, vector<int>> adjList;
-    unordered_map<int, Community> communityDB;
-	unordered_map<string, DirectChat> dmDB;
+    // changed unordered_map to map to match Graph.cpp and ensure sorted data
+    map<int, User> userDB;
+    map<string, int> usernameIndex;
+    map<int, vector<int>> adjList;
+    map<int, Community> communityDB;
+    map<string, DirectChat> dmDB;
+    
     int nextCommunityId = 100;
 
     vector<string> split(const string& s, char delimiter);
@@ -32,6 +33,14 @@ public:
     int registerUser(string username, string email, string password, string avatar, string tags);
     int loginUser(string username, string password);
     void updateUserProfile(int id, string email, string avatar, string tags);
+    void deleteUser(int id);
+
+    // CONNECTION LOGIC
+    string sendConnectionRequest(int senderId, int targetId);
+    void acceptConnectionRequest(int userId, int requesterId);
+    void declineConnectionRequest(int userId, int requesterId);
+    string getPendingRequestsJSON(int userId);
+    string getRelationshipStatus(int me, int target);
 
     // CORE
     void addUser(int id, string username);
@@ -39,25 +48,26 @@ public:
     void createCommunity(string name, string desc, string tags, int creatorId, string coverUrl);
     void joinCommunity(int userId, int commId);
     void leaveCommunity(int userId, int commId);
-    void addMessage(int commId, int senderId, string content);
+    
+    // UPDATED: Now supports replies and types
+    void addMessage(int commId, int senderId, string content, string type = "text", int replyToId = -1);
+    void votePoll(int commId, int userId, int msgIndex, int optionIndex);
 
-    // MODERATION & ADMIN (NEW FUNCTIONS HERE)
+    // MODERATION
     void banUser(int commId, int actorId, int targetId);
     void unbanUser(int commId, int actorId, int targetId);
     void deleteMessage(int commId, int actorId, int msgIndex);
     void pinMessage(int commId, int actorId, int msgIndex);
     void upvoteMessage(int commId, int userId, int msgIndex);
-    
-    // HIERARCHY
     void promoteToAdmin(int commId, int actorId, int targetId);
     void demoteAdmin(int commId, int actorId, int targetId);
     void transferOwnership(int commId, int actorId, int targetId);
-	
-	// DIRECT MESSAGING
+
+    // DIRECT MESSAGE
     void sendDirectMessage(int senderId, int receiverId, string content, int replyToId = -1);
     void reactToDirectMessage(int senderId, int receiverId, int msgId, string reaction);
-
-	void deleteUser(int id);
+    string getDirectChatJSON(int viewerId, int friendId);
+    string getActiveDMsJSON(int userId);
 
     // VIEWS
     string getUserJSON(int id);
@@ -68,13 +78,10 @@ public:
     string getPopularCommunitiesJSON();
     string getGraphVisualJSON();
     string getRecommendationsJSON(int userId);
-    string getConnectionsByDegreeJSON(int startNode, int targetDegree);
-    
-    // MEMBER LIST (Updated to show admins/bans)
     string getCommunityMembersJSON(int commId);
-	
-	// Fetches chat AND marks unseen messages from the other person as 'Seen'
-    string getDirectChatJSON(int viewerId, int friendId);
-    string getActiveDMsJSON(int userId);
+    
+    // ALGORITHMS
     int getRelationDegree(int startNode, int targetNode);
+    // Added this missing function to fix the error:
+    string getConnectionsByDegreeJSON(int startNode, int targetDegree);
 };

@@ -27,6 +27,13 @@ const Sidebar = ({ activeTab, setActiveTab, joinedCommunities = [], onCommunityC
         <button onClick={() => setActiveTab('explore_users')} className={`w-full flex items-center px-6 py-3 transition-all border-l-4 ${activeTab === 'explore_users' ? 'border-green-400 bg-green-400/10 text-white' : 'border-transparent text-gray-400 hover:text-white hover:bg-white/5'}`}>
           <span className="text-xl">📡</span><span className="ml-4 font-montserrat font-bold hidden md:block">Find Signals</span>
         </button>
+		<button 
+          onClick={() => setActiveTab('notifications')}
+          className={`w-full flex items-center px-6 py-3 transition-all border-l-4 ${activeTab === 'notifications' ? 'border-yellow-400 bg-yellow-400/10 text-white' : 'border-transparent text-gray-400 hover:text-white hover:bg-white/5'}`}
+        >
+          <span className="text-xl">🔔</span>
+          <span className="ml-4 font-montserrat font-bold hidden md:block">Requests</span>
+        </button>
         <button onClick={() => setActiveTab('map')} className={`w-full flex items-center px-6 py-3 transition-all border-l-4 ${activeTab === 'map' ? 'border-pink-500 bg-pink-500/10 text-white' : 'border-transparent text-gray-400 hover:text-white hover:bg-white/5'}`}>
           <span className="text-xl">🌌</span><span className="ml-4 font-montserrat font-bold hidden md:block">Galaxy Map</span>
         </button>
