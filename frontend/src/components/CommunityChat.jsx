@@ -12,7 +12,12 @@ const CommunityChat = ({ commId, currentUserId, onLeave, onAbout }) => {
   // UI STATES
   const [showPollModal, setShowPollModal] = useState(false);
   const [replyTarget, setReplyTarget] = useState(null); 
-  const [expandedImage, setExpandedImage] = useState(null); // NEW: Image Viewer
+  const [expandedImage, setExpandedImage] = useState(null);
+
+  // RECORDING STATE
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
 
   // Pagination State
   const [offset, setOffset] = useState(0);
@@ -25,7 +30,7 @@ const CommunityChat = ({ commId, currentUserId, onLeave, onAbout }) => {
   const prevScrollHeight = useRef(0);
   const isAtBottom = useRef(true);
   const loadingHistory = useRef(false);
-  const fileInputRef = useRef(null); // NEW: File Input
+  const fileInputRef = useRef(null);
 
   // 1. Fetch Latest
   const fetchLatest = async () => {
@@ -97,10 +102,47 @@ const CommunityChat = ({ commId, currentUserId, onLeave, onAbout }) => {
       }
   };
 
+  // --- VOICE NOTE LOGIC ---
+  const startRecording = async () => {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const recorder = new MediaRecorder(stream);
+        mediaRecorderRef.current = recorder;
+        audioChunksRef.current = [];
+
+        recorder.ondataavailable = (e) => {
+            if (e.data.size > 0) audioChunksRef.current.push(e.data);
+        };
+
+        recorder.onstop = () => {
+            const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+            const reader = new FileReader();
+            reader.readAsDataURL(audioBlob); 
+            reader.onloadend = () => {
+                sendMessage("Voice Message 🎤", "audio", reader.result);
+            };
+            stream.getTracks().forEach(track => track.stop());
+        };
+
+        recorder.start();
+        setIsRecording(true);
+    } catch (err) {
+        console.error("Mic error:", err);
+        alert("Microphone access denied.");
+    }
+  };
+
+  const stopRecording = () => {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+          mediaRecorderRef.current.stop();
+          setIsRecording(false);
+      }
+  };
+
+  // --- MODERATION ---
   const handleLeaveCommunity = async () => {
     if (window.confirm(`Leave ${details.name}?`)) { await callBackend('leave_community', [currentUserId, commId]); onLeave(); }
   };
-
   const handleVote = async (index) => { await callBackend('vote_message', [commId, currentUserId, index]); fetchLatest(); };
   const handlePin = async (index) => { await callBackend('mod_pin', [commId, currentUserId, index]); fetchLatest(); };
   const handleDelete = async (index) => { if(window.confirm("Delete?")) { await callBackend('mod_delete', [commId, currentUserId, index]); fetchLatest(); }};
@@ -153,6 +195,7 @@ const CommunityChat = ({ commId, currentUserId, onLeave, onAbout }) => {
             return (
               <div key={`${m.id}-${idx}`} className={`flex w-full ${isMe ? "justify-end" : "justify-start"}`}>
                  
+                 {/* Message Row */}
                  <div className={`flex max-w-[90%] gap-3 group items-end ${isMe ? "flex-row-reverse" : "flex-row"}`}>
                     
                     {/* AVATAR */}
@@ -177,7 +220,7 @@ const CommunityChat = ({ commId, currentUserId, onLeave, onAbout }) => {
                             </div>
                         )}
 
-                        {/* MAIN CONTENT (Poll, Image, or Text) */}
+                        {/* MAIN CONTENT (Poll, Image, Audio, Text) */}
                         {m.type === "poll" ? (
                             <div className={`px-2 py-2 text-sm shadow-lg backdrop-blur-sm rounded-xl ${isMe ? "bg-cyan-supernova/10 border border-cyan-supernova/30" : "bg-white/5 border border-white/10"}`}>
                                 <PollMessage poll={m.poll} msgId={m.id} commId={commId} currentUserId={currentUserId} onUpdate={fetchLatest} />
@@ -189,6 +232,15 @@ const CommunityChat = ({ commId, currentUserId, onLeave, onAbout }) => {
                                     alt="shared" 
                                     className="max-w-[250px] max-h-[300px] rounded-lg object-cover hover:opacity-90 transition"
                                     onClick={() => setExpandedImage(m.mediaUrl)}
+                                />
+                            </div>
+                        ) : m.type === "audio" ? (
+                            <div className={`p-2 shadow-lg backdrop-blur-sm rounded-xl min-w-[260px] flex items-center justify-center ${isMe ? "bg-cyan-supernova/10 border border-cyan-supernova/30" : "bg-white/5 border border-white/10"}`}>
+                                <audio 
+                                    controls 
+                                    src={m.mediaUrl} 
+                                    className="w-full h-10 rounded-md focus:outline-none" 
+                                    style={{ filter: isMe ? "invert(1) hue-rotate(180deg)" : "invert(0.9)" }} 
                                 />
                             </div>
                         ) : (
@@ -208,14 +260,14 @@ const CommunityChat = ({ commId, currentUserId, onLeave, onAbout }) => {
 
                     {/* HOVER TOOLS */}
                     <div className={`flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity mb-2 bg-black/40 backdrop-blur rounded-lg p-1 border border-white/5 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
-                         <button onClick={() => setReplyTarget({ index: m.id, content: m.type==='image'?'[Image]':m.content })} className="p-1.5 text-gray-500 hover:text-cyan-supernova hover:bg-white/10 rounded" title="Reply">
+                         <button onClick={() => setReplyTarget({ index: m.id, content: m.type==='image'?'[Image]':m.type==='audio'?'[Audio]':m.content })} className="p-1.5 text-gray-500 hover:text-cyan-supernova hover:bg-white/10 rounded" title="Reply">
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg>
                          </button>
                          <button onClick={() => handleVote(m.index)} className={`p-1.5 rounded text-xs ${m.has_voted ? "text-cyan-supernova font-bold" : "text-gray-400 hover:text-white hover:bg-white/10"}`}>▲</button>
                          {(details.is_mod || isMe) && (
                             <>
-                                {details.is_mod && <button onClick={() => handlePin(m.index)} className={`p-1.5 text-xs rounded hover:bg-white/10 ${m.pinned ? "text-yellow-400" : "text-gray-400 hover:text-yellow-400"}`} title="Pin">📌</button>}
-                                <button onClick={() => handleDelete(m.index)} className="p-1.5 text-xs text-gray-400 hover:text-red-500 hover:bg-white/10 rounded" title="Delete">🗑️</button>
+                                {details.is_mod && <button onClick={() => handlePin(m.index)} className={`p-1.5 text-xs rounded hover:bg-white/10 ${m.pinned ? "text-yellow-400" : "text-gray-400 hover:text-yellow-400"}`}>📌</button>}
+                                <button onClick={() => handleDelete(m.index)} className="p-1.5 text-xs text-gray-400 hover:text-red-500 hover:bg-white/10 rounded">🗑️</button>
                                 {details.is_mod && !isMe && <button onClick={() => handleBan(m.senderId)} className="px-1.5 py-0.5 text-[9px] text-red-500 font-bold border border-red-500/30 rounded hover:bg-red-500/10 ml-1">BAN</button>}
                             </>
                          )}
@@ -242,29 +294,47 @@ const CommunityChat = ({ commId, currentUserId, onLeave, onAbout }) => {
       {showPollModal && <CreatePollModal commId={commId} currentUserId={currentUserId} onClose={() => setShowPollModal(false)} onRefresh={fetchLatest} />}
 
       {/* INPUT */}
-      <form onSubmit={handleSendText} className="p-4 border-t border-white/10 bg-void-black/90 flex gap-3 shrink-0 items-center">
-        
-        {/* Hidden File Input */}
-        <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileSelect} className="hidden" />
-        
-        {/* Tools */}
-        <div className="flex gap-2">
-            <button type="button" onClick={() => fileInputRef.current.click()} className="text-gray-400 hover:text-cyan-supernova p-2 rounded-full hover:bg-white/5 transition" title="Image">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-            </button>
-            <button type="button" onClick={() => setShowPollModal(true)} className="text-gray-400 hover:text-cyan-supernova p-2 rounded-full hover:bg-white/5 transition" title="Poll">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20v-6M6 20V10M18 20V4"/></svg>
-            </button>
-        </div>
+      <div className="p-4 bg-void-black/80 border-t border-white/10 shrink-0">
+        {details.is_member ? (
+          <form onSubmit={handleSendText} className="flex gap-2 items-center">
+            
+            <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileSelect} className="hidden" />
 
-        <input 
-          className="flex-1 bg-deep-void px-4 py-3 rounded-xl border border-white/10 text-white focus:border-cyan-supernova focus:ring-1 focus:ring-cyan-supernova outline-none placeholder-gray-600 transition"
-          placeholder={replyTarget ? "Type your reply..." : `Message #${details.name}...`}
-          value={msgInput}
-          onChange={e => setMsgInput(e.target.value)}
-        />
-        <button type="submit" className="bg-cyan-supernova text-black font-bold px-6 py-3 rounded-xl hover:bg-cyan-400 shadow-[0_0_15px_rgba(0,240,255,0.4)] transition">SEND</button>
-      </form>
+            {/* Tools Group */}
+            <div className="flex gap-1">
+                <button type="button" onClick={() => fileInputRef.current.click()} className="text-gray-400 hover:text-cyan-supernova p-2 rounded-full hover:bg-white/5 transition" title="Image">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                </button>
+                <button type="button" onClick={() => setShowPollModal(true)} className="text-gray-400 hover:text-cyan-supernova p-2 rounded-full hover:bg-white/5 transition" title="Poll">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20v-6M6 20V10M18 20V4"/></svg>
+                </button>
+                <button 
+                    type="button" 
+                    onMouseDown={startRecording}
+                    onMouseUp={stopRecording}
+                    onMouseLeave={stopRecording}
+                    onTouchStart={startRecording}
+                    onTouchEnd={stopRecording}
+                    className={`p-2 rounded-full transition duration-200 ${isRecording ? "bg-red-500 text-white animate-pulse shadow-[0_0_15px_red]" : "text-gray-400 hover:text-white hover:bg-white/5"}`}
+                    title="Hold to Record"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                </button>
+            </div>
+
+            <input 
+              className="flex-1 bg-deep-void px-4 py-2.5 rounded-xl border border-white/10 text-white focus:border-cyan-supernova focus:ring-1 focus:ring-cyan-supernova outline-none placeholder-gray-600 transition"
+              placeholder={replyTarget ? "Type your reply..." : isRecording ? "Recording..." : `Message #${details.name}...`}
+              value={msgInput}
+              onChange={e => setMsgInput(e.target.value)}
+              disabled={isRecording}
+            />
+            <button type="submit" className="bg-cyan-supernova text-black font-bold px-6 py-2.5 rounded-xl hover:bg-cyan-400 shadow-lg transition">SEND</button>
+          </form>
+        ) : (
+             <div className="text-center"><button onClick={() => callBackend('join_community', [currentUserId, commId]).then(fetchLatest)} className="bg-green-500 text-black font-bold px-6 py-2 rounded shadow-lg hover:scale-105 transition">JOIN CHANNEL</button></div>
+        )}
+      </div>
 
       {/* IMAGE VIEWER */}
       {expandedImage && (
