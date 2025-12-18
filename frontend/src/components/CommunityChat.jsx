@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { callBackend } from '../api';
-import PollMessage from './PollMessage';       // <--- ENSURE THIS FILE EXISTS
-import CreatePollModal from './CreatePollModal'; // <--- ENSURE THIS FILE EXISTS
+import PollMessage from './PollMessage';
+import CreatePollModal from './CreatePollModal';
 
 const CommunityChat = ({ commId, currentUserId, onLeave, onAbout }) => {
   const [details, setDetails] = useState(null);
@@ -9,11 +9,10 @@ const CommunityChat = ({ commId, currentUserId, onLeave, onAbout }) => {
   const [pinnedMessages, setPinnedMessages] = useState([]);
   const [msgInput, setMsgInput] = useState("");
   
-  // POLL MODAL STATE
+  // UI STATES
   const [showPollModal, setShowPollModal] = useState(false);
-
-  // REPLY STATE
   const [replyTarget, setReplyTarget] = useState(null); 
+  const [expandedImage, setExpandedImage] = useState(null); // NEW: Image Viewer
 
   // Pagination State
   const [offset, setOffset] = useState(0);
@@ -26,6 +25,7 @@ const CommunityChat = ({ commId, currentUserId, onLeave, onAbout }) => {
   const prevScrollHeight = useRef(0);
   const isAtBottom = useRef(true);
   const loadingHistory = useRef(false);
+  const fileInputRef = useRef(null); // NEW: File Input
 
   // 1. Fetch Latest
   const fetchLatest = async () => {
@@ -72,12 +72,29 @@ const CommunityChat = ({ commId, currentUserId, onLeave, onAbout }) => {
 
   // --- ACTIONS ---
 
-  const handleSend = async (e) => {
+  const sendMessage = async (content, type = "text", mediaUrl = "NONE") => {
+    const replyId = replyTarget ? replyTarget.index : -1;
+    // send_message <comm> <sender> <replyTo> <type> <mediaUrl> <content>
+    await callBackend('send_message', [commId, currentUserId, replyId, type, mediaUrl, content]);
+    setMsgInput(""); setReplyTarget(null); setOffset(0); isAtBottom.current = true; fetchLatest();
+  };
+
+  const handleSendText = async (e) => {
     e.preventDefault();
     if (!msgInput.trim()) return;
-    const replyId = replyTarget ? replyTarget.index : -1;
-    await callBackend('send_message', [commId, currentUserId, replyId, msgInput]);
-    setMsgInput(""); setReplyTarget(null); setOffset(0); isAtBottom.current = true; fetchLatest();
+    await sendMessage(msgInput, "text", "NONE");
+  };
+
+  const handleFileSelect = (e) => {
+      const file = e.target.files[0];
+      if (file) {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+              const base64 = reader.result;
+              sendMessage("Sent an image", "image", base64);
+          };
+          reader.readAsDataURL(file);
+      }
   };
 
   const handleLeaveCommunity = async () => {
@@ -160,21 +177,24 @@ const CommunityChat = ({ commId, currentUserId, onLeave, onAbout }) => {
                             </div>
                         )}
 
-                        {/* MAIN CONTENT (TEXT OR POLL) */}
+                        {/* MAIN CONTENT (Poll, Image, or Text) */}
                         {m.type === "poll" ? (
-                            <div className={`px-2 py-2 text-sm shadow-lg backdrop-blur-sm rounded-xl
-                                ${isMe ? "bg-cyan-supernova/10 border border-cyan-supernova/30" : "bg-white/5 border border-white/10"}
-                            `}>
+                            <div className={`px-2 py-2 text-sm shadow-lg backdrop-blur-sm rounded-xl ${isMe ? "bg-cyan-supernova/10 border border-cyan-supernova/30" : "bg-white/5 border border-white/10"}`}>
                                 <PollMessage poll={m.poll} msgId={m.id} commId={commId} currentUserId={currentUserId} onUpdate={fetchLatest} />
+                            </div>
+                        ) : m.type === "image" ? (
+                            <div className={`p-1 shadow-lg backdrop-blur-sm rounded-xl overflow-hidden cursor-pointer ${isMe ? "bg-cyan-supernova/10 border border-cyan-supernova/30" : "bg-white/5 border border-white/10"}`}>
+                                <img 
+                                    src={m.mediaUrl} 
+                                    alt="shared" 
+                                    className="max-w-[250px] max-h-[300px] rounded-lg object-cover hover:opacity-90 transition"
+                                    onClick={() => setExpandedImage(m.mediaUrl)}
+                                />
                             </div>
                         ) : (
                             <div className={`px-4 py-2 text-sm shadow-lg backdrop-blur-sm 
                                 ${m.pinned ? "border-2 border-cyan-supernova/50 shadow-[0_0_10px_rgba(0,240,255,0.2)]" : ""} 
-                                ${isMe 
-                                    ? "bg-cyan-supernova/10 border border-cyan-supernova/30 text-white rounded-2xl rounded-tr-none" 
-                                    : "bg-white/5 border border-white/10 text-gray-200 rounded-2xl rounded-tl-none"
-                                }
-                            `}>
+                                ${isMe ? "bg-cyan-supernova/10 border border-cyan-supernova/30 text-white rounded-2xl rounded-tr-none" : "bg-white/5 border border-white/10 text-gray-200 rounded-2xl rounded-tl-none"}`}>
                                 {m.content}
                             </div>
                         )}
@@ -188,14 +208,14 @@ const CommunityChat = ({ commId, currentUserId, onLeave, onAbout }) => {
 
                     {/* HOVER TOOLS */}
                     <div className={`flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity mb-2 bg-black/40 backdrop-blur rounded-lg p-1 border border-white/5 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
-                         <button onClick={() => setReplyTarget({ index: m.id, content: m.content })} className="p-1.5 text-gray-500 hover:text-cyan-supernova hover:bg-white/10 rounded" title="Reply">
+                         <button onClick={() => setReplyTarget({ index: m.id, content: m.type==='image'?'[Image]':m.content })} className="p-1.5 text-gray-500 hover:text-cyan-supernova hover:bg-white/10 rounded" title="Reply">
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg>
                          </button>
                          <button onClick={() => handleVote(m.index)} className={`p-1.5 rounded text-xs ${m.has_voted ? "text-cyan-supernova font-bold" : "text-gray-400 hover:text-white hover:bg-white/10"}`}>▲</button>
                          {(details.is_mod || isMe) && (
                             <>
-                                {details.is_mod && <button onClick={() => handlePin(m.index)} className={`p-1.5 text-xs rounded hover:bg-white/10 ${m.pinned ? "text-yellow-400" : "text-gray-400 hover:text-yellow-400"}`}>📌</button>}
-                                <button onClick={() => handleDelete(m.index)} className="p-1.5 text-xs text-gray-400 hover:text-red-500 hover:bg-white/10 rounded">🗑️</button>
+                                {details.is_mod && <button onClick={() => handlePin(m.index)} className={`p-1.5 text-xs rounded hover:bg-white/10 ${m.pinned ? "text-yellow-400" : "text-gray-400 hover:text-yellow-400"}`} title="Pin">📌</button>}
+                                <button onClick={() => handleDelete(m.index)} className="p-1.5 text-xs text-gray-400 hover:text-red-500 hover:bg-white/10 rounded" title="Delete">🗑️</button>
                                 {details.is_mod && !isMe && <button onClick={() => handleBan(m.senderId)} className="px-1.5 py-0.5 text-[9px] text-red-500 font-bold border border-red-500/30 rounded hover:bg-red-500/10 ml-1">BAN</button>}
                             </>
                          )}
@@ -222,27 +242,38 @@ const CommunityChat = ({ commId, currentUserId, onLeave, onAbout }) => {
       {showPollModal && <CreatePollModal commId={commId} currentUserId={currentUserId} onClose={() => setShowPollModal(false)} onRefresh={fetchLatest} />}
 
       {/* INPUT */}
-      <div className="p-4 bg-void-black/80 border-t border-white/10 shrink-0">
-        {details.is_member ? (
-          <form onSubmit={handleSend} className="flex gap-2">
-            
-            {/* POLL BUTTON */}
-            <button type="button" onClick={() => setShowPollModal(true)} className="text-xl text-gray-400 hover:text-cyan-supernova px-2 transition">
-                📊
+      <form onSubmit={handleSendText} className="p-4 border-t border-white/10 bg-void-black/90 flex gap-3 shrink-0 items-center">
+        
+        {/* Hidden File Input */}
+        <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileSelect} className="hidden" />
+        
+        {/* Tools */}
+        <div className="flex gap-2">
+            <button type="button" onClick={() => fileInputRef.current.click()} className="text-gray-400 hover:text-cyan-supernova p-2 rounded-full hover:bg-white/5 transition" title="Image">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
             </button>
+            <button type="button" onClick={() => setShowPollModal(true)} className="text-gray-400 hover:text-cyan-supernova p-2 rounded-full hover:bg-white/5 transition" title="Poll">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20v-6M6 20V10M18 20V4"/></svg>
+            </button>
+        </div>
 
-            <input 
-              className="flex-1 bg-deep-void p-3 rounded-lg border border-white/10 text-white focus:border-cyan-supernova outline-none placeholder-gray-600 transition"
-              placeholder={replyTarget ? "Type your reply..." : `Message #${details.name}...`}
-              value={msgInput}
-              onChange={e => setMsgInput(e.target.value)}
-            />
-            <button type="submit" className="bg-cyan-supernova text-black font-bold px-6 rounded-lg hover:bg-cyan-supernova/80 shadow-lg shadow-cyan-supernova/20 transition">SEND</button>
-          </form>
-        ) : (
-             <div className="text-center"><button onClick={() => callBackend('join_community', [currentUserId, commId]).then(fetchLatest)} className="bg-green-500 text-black font-bold px-6 py-2 rounded">JOIN CHANNEL</button></div>
-        )}
-      </div>
+        <input 
+          className="flex-1 bg-deep-void px-4 py-3 rounded-xl border border-white/10 text-white focus:border-cyan-supernova focus:ring-1 focus:ring-cyan-supernova outline-none placeholder-gray-600 transition"
+          placeholder={replyTarget ? "Type your reply..." : `Message #${details.name}...`}
+          value={msgInput}
+          onChange={e => setMsgInput(e.target.value)}
+        />
+        <button type="submit" className="bg-cyan-supernova text-black font-bold px-6 py-3 rounded-xl hover:bg-cyan-400 shadow-[0_0_15px_rgba(0,240,255,0.4)] transition">SEND</button>
+      </form>
+
+      {/* IMAGE VIEWER */}
+      {expandedImage && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md p-4 animate-fade-in" onClick={() => setExpandedImage(null)}>
+              <button onClick={() => setExpandedImage(null)} className="absolute top-6 right-6 text-white hover:text-red-500 bg-white/10 hover:bg-white/20 p-2 rounded-full transition">✕</button>
+              <img src={expandedImage} className="max-w-full max-h-[90vh] rounded-lg shadow-2xl object-contain cursor-default" onClick={(e) => e.stopPropagation()} alt="Enlarged"/>
+          </div>
+      )}
+
     </div>
   );
 };

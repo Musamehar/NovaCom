@@ -113,11 +113,17 @@ int main(int argc, char* argv[]) {
         if (argc < 3) return 1;
         cout << graph.getCommunityMembersJSON(stoi(argv[2])) << endl;
     }
-    else if (command == "send_message") {
-        if (argc < 5) return 1;
-        string content = argv[4];
-        for (int i = 5; i < argc; ++i) content += " " + string(argv[i]);
-        graph.addMessage(stoi(argv[2]), stoi(argv[3]), content, "text", -1);
+     else if (command == "send_message") {
+        if (argc < 8) return 1; // Expected 8 args now
+        
+        int replyId = stoi(argv[4]);
+        string type = argv[5];
+        string mediaUrl = resolveArg(argv[6]); // FIX: Resolve file pointer
+        string content = argv[7];
+        
+        for (int i = 8; i < argc; ++i) content += " " + string(argv[i]);
+        
+        graph.addMessage(stoi(argv[2]), stoi(argv[3]), content, type, mediaUrl, replyId);
         cout << "{ \"status\": \"sent\" }" << endl;
     }
     else if (command == "search_users") {

@@ -183,6 +183,9 @@ void NovaGraph::loadData() {
     if (chatFile.is_open()) {
         while (getline(chatFile, line)) {
             auto parts = split(line, '|');
+            
+            // Check for format version (Old=9/10 fields, New=11 fields)
+            // We'll use a flexible approach
             if (parts.size() >= 10) {
                 int commId = safeStoi(parts[0]);
                 if (communityDB.find(commId) != communityDB.end()) {
@@ -192,7 +195,7 @@ void NovaGraph::loadData() {
                     m.senderName = parts[3];
                     m.timestamp = parts[4];
                     m.upvoters.clear();
-                    if (parts[5] != "0") {
+                    if (parts[5] != "0" && parts[5] != "") {
                          auto voterList = split(parts[5], ',');
                          for(auto v : voterList) { int vid = safeStoi(v); if(vid!=0) m.upvoters.insert(vid); }
                     }
@@ -200,8 +203,19 @@ void NovaGraph::loadData() {
                     m.replyToId = safeStoi(parts[7]);
                     m.type = parts[8];
                     
-                    string rawContent = parts[9];
-                    for(size_t i=10; i<parts.size(); i++) rawContent += "|" + parts[i]; 
+                    int contentIdx = 9;
+                    
+                    // IF NEW FORMAT (Has MediaUrl at index 9)
+                    if (parts.size() >= 11) {
+                        m.mediaUrl = parts[9];
+                        contentIdx = 10;
+                    } else {
+                        m.mediaUrl = ""; // Legacy
+                    }
+
+                    // Content is the rest
+                    string rawContent = parts[contentIdx];
+                    for(size_t i=contentIdx+1; i<parts.size(); i++) rawContent += "|" + parts[i]; 
 
                     if (m.type == "poll") {
                         m.poll = parsePoll(rawContent);
@@ -299,12 +313,24 @@ void NovaGraph::saveData() {
     commFile.close();
 
     // 4. Save Chats (Updated format with Type and ReplyID)
-     ofstream chatFile("data/chats.txt");
+      ofstream chatFile("data/chats.txt");
     for (auto const& [commId, comm] : communityDB) {
         for (const auto& msg : comm.chatHistory) {
-            chatFile << commId << "|" << msg.id << "|" << msg.senderId << "|" << msg.senderName << "|" << msg.timestamp << "|";
-            if (msg.upvoters.empty()) chatFile << "0"; else { int i=0; for(int uid : msg.upvoters) { chatFile << uid << (i < msg.upvoters.size()-1 ? "," : ""); i++; } }
-            chatFile << "|" << (msg.isPinned ? "1" : "0") << "|" << msg.replyToId << "|" << msg.type << "|";
+            chatFile << commId << "|" 
+                     << msg.id << "|" 
+                     << msg.senderId << "|" 
+                     << msg.senderName << "|" 
+                     << msg.timestamp << "|";
+            
+            if (msg.upvoters.empty()) chatFile << "0"; 
+            else { int i=0; for(int uid : msg.upvoters) { chatFile << uid << (i < msg.upvoters.size()-1 ? "," : ""); i++; } }
+            
+            chatFile << "|" 
+                     << (msg.isPinned ? "1" : "0") << "|" 
+                     << msg.replyToId << "|" 
+                     << msg.type << "|"
+                     // NEW FIELD: MediaUrl
+                     << (msg.mediaUrl.empty() ? "NONE" : sanitize(msg.mediaUrl)) << "|";
             
             if (msg.type == "poll") chatFile << serializePoll(msg.poll);
             else chatFile << sanitize(msg.content);
@@ -618,12 +644,12 @@ void NovaGraph::leaveCommunity(int userId, int commId) {
 }
 
 // UPDATED addMessage (With Type and ReplyID)
-void NovaGraph::addMessage(int commId, int senderId, string content, string type, int replyToId) {
+void NovaGraph::addMessage(int commId, int senderId, string content, string type, string mediaUrl, int replyToId) {
     if (communityDB.find(commId) != communityDB.end()) {
         if (communityDB[commId].members.count(senderId)) {
             Community& c = communityDB[commId];
             Message m; 
-            m.id = c.nextMsgId++; // ASSIGN UNIQUE ID
+            m.id = c.nextMsgId++; 
             m.senderId = senderId; 
             m.senderName = userDB[senderId].username; 
             m.content = sanitize(content); 
@@ -631,6 +657,7 @@ void NovaGraph::addMessage(int commId, int senderId, string content, string type
             m.upvoters.clear(); 
             m.isPinned = false;
             m.type = type; 
+            m.mediaUrl = (mediaUrl.empty() ? "NONE" : sanitize(mediaUrl));
             m.replyToId = replyToId;
             
             c.chatHistory.push_back(m);
@@ -879,8 +906,9 @@ string NovaGraph::getAllCommunitiesJSON() {
 string NovaGraph::getCommunityDetailsJSON(int commId, int userId, int offset, int limit) {
     if (communityDB.find(commId) == communityDB.end()) return "{}";
     Community& c = communityDB[commId];
-    // ... [Keep Permissions] ...
-    bool isMember = c.members.count(userId); bool isMod = c.moderators.count(userId); bool isAdmin = c.admins.count(userId);
+    bool isMember = c.members.count(userId); 
+    bool isMod = c.moderators.count(userId); 
+    bool isAdmin = c.admins.count(userId);
 
     string json = "{ \"id\": " + to_string(c.id) + 
                   ", \"name\": \"" + jsonEscape(c.name) + "\"" +
@@ -898,9 +926,11 @@ string NovaGraph::getCommunityDetailsJSON(int commId, int userId, int offset, in
         if (i < 0 || i >= total) continue;
         Message& m = c.chatHistory[i];
         bool hasVoted = m.upvoters.count(userId);
-        string avatar = ""; if(userDB.find(m.senderId) != userDB.end()) avatar = userDB[m.senderId].avatarUrl;
+        
+        string avatar = "";
+        if(userDB.find(m.senderId) != userDB.end()) avatar = userDB[m.senderId].avatarUrl;
 
-        // Build Poll JSON if type is poll
+        // Poll JSON
         string pollJson = "null";
         if (m.type == "poll") {
             pollJson = "{ \"question\": \"" + jsonEscape(m.poll.question) + "\", \"multi\": " + (m.poll.allowMultiple?"true":"false") + ", \"options\": [";
@@ -913,10 +943,15 @@ string NovaGraph::getCommunityDetailsJSON(int commId, int userId, int offset, in
             pollJson += "] }";
         }
 
-        // Reply Preview Logic
         string replyPreview = "";
         if (m.replyToId != -1) {
-             for (const auto& orig : c.chatHistory) { if (orig.id == m.replyToId) { replyPreview = sanitize(orig.content.substr(0, 30)); break; } }
+            for (const auto& orig : c.chatHistory) {
+                if (orig.id == m.replyToId) {
+                    string txt = (orig.type == "image") ? "[Image]" : orig.content;
+                    replyPreview = sanitize(txt.substr(0, 30));
+                    break;
+                }
+            }
         }
 
         json += "{ \"index\": " + to_string(i) + 
@@ -926,6 +961,7 @@ string NovaGraph::getCommunityDetailsJSON(int commId, int userId, int offset, in
                 ", \"senderAvatar\": \"" + jsonEscape(avatar) + "\"" + 
                 ", \"content\": \"" + jsonEscape(m.content) + "\"" +
                 ", \"type\": \"" + m.type + "\"" +
+                ", \"mediaUrl\": \"" + jsonEscape(m.mediaUrl) + "\"" +
                 ", \"poll\": " + pollJson + 
                 ", \"time\": \"" + m.timestamp + "\"" +
                 ", \"votes\": " + to_string(m.upvoters.size()) + 
@@ -938,7 +974,6 @@ string NovaGraph::getCommunityDetailsJSON(int commId, int userId, int offset, in
     json += "] }";
     return json;
 }
-
 
 string NovaGraph::getConnectionsByDegreeJSON(int startNode, int targetDegree) {
     if (userDB.find(startNode) == userDB.end()) return "[]";

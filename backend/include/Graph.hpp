@@ -48,7 +48,7 @@ public:
     void leaveCommunity(int userId, int commId);
     
     // UPDATED: Now supports replies and types
-    void addMessage(int commId, int senderId, string content, string type = "text", int replyToId = -1);
+    void addMessage(int commId, int senderId, string content, string type = "text", string mediaUrl = "", int replyToId = -1);
     void votePoll(int commId, int userId, int msgIndex, int optionIndex);
 
     // MODERATION
