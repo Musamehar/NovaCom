@@ -1,241 +1,368 @@
 #include "../include/Graph.hpp"
 #include <iostream>
 #include <string>
-#include <fstream> 
+#include <fstream>
 #include <sstream>
 
 using namespace std;
 
 // --- Helper to handle Large Arguments passed as Files ---
-string resolveArg(string arg) {
-    if (arg.rfind("FILE:", 0) == 0) { 
-        string path = arg.substr(5); // Remove "FILE:"
+string resolveArg(string arg)
+{
+    if (arg.rfind("FILE:", 0) == 0)
+    {
+        string path = arg.substr(5);      // Remove "FILE:"
         ifstream file(path, ios::binary); // Binary mode is safer for weird chars
-        if (file.is_open()) {
+        if (file.is_open())
+        {
             stringstream buffer;
             buffer << file.rdbuf();
             return buffer.str(); // Return the Base64 content
-        } else {
+        }
+        else
+        {
             // Log error to stderr (Node.js will see this in console)
             cerr << "[C++ Error] Failed to open temp file: " << path << endl;
         }
     }
-    return arg; 
+    return arg;
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[])
+{
     NovaGraph graph;
     graph.loadData();
 
-    if (argc < 2) { cout << "{ \"error\": \"No command provided\" }" << endl; return 1; }
+    if (argc < 2)
+    {
+        cout << "{ \"error\": \"No command provided\" }" << endl;
+        return 1;
+    }
     string command = argv[1];
 
-    if (command == "register") {
-        if (argc < 7) { cout << "{ \"error\": \"Missing args\" }" << endl; return 1; }
+    if (command == "register")
+    {
+        if (argc < 7)
+        {
+            cout << "{ \"error\": \"Missing args\" }" << endl;
+            return 1;
+        }
         int newId = graph.registerUser(argv[2], argv[3], argv[4], argv[5], argv[6]);
-        if (newId == -1) cout << "{ \"error\": \"Username taken\" }" << endl;
-        else cout << "{ \"id\": " << newId << ", \"status\": \"success\" }" << endl;
+        if (newId == -1)
+            cout << "{ \"error\": \"Username taken\" }" << endl;
+        else
+            cout << "{ \"id\": " << newId << ", \"status\": \"success\" }" << endl;
     }
-    else if (command == "login") {
-        if (argc < 4) { cout << "{ \"error\": \"Missing args\" }" << endl; return 1; }
+    else if (command == "login")
+    {
+        if (argc < 4)
+        {
+            cout << "{ \"error\": \"Missing args\" }" << endl;
+            return 1;
+        }
         int id = graph.loginUser(argv[2], argv[3]);
-        if (id == -1) cout << "{ \"error\": \"Invalid credentials\" }" << endl;
-        else cout << "{ \"id\": " << id << ", \"status\": \"success\" }" << endl;
+        if (id == -1)
+            cout << "{ \"error\": \"Invalid credentials\" }" << endl;
+        else
+            cout << "{ \"id\": " << id << ", \"status\": \"success\" }" << endl;
     }
-    else if (command == "get_user") {
-        if (argc < 3) return 1;
+    else if (command == "get_user")
+    {
+        if (argc < 3)
+            return 1;
         cout << graph.getUserJSON(stoi(argv[2])) << endl;
     }
-    else if (command == "update_profile") {
-        if (argc < 6) return 1;
+    else if (command == "update_profile")
+    {
+        if (argc < 6)
+            return 1;
         graph.updateUserProfile(stoi(argv[2]), argv[3], argv[4], argv[5]);
         cout << "{ \"status\": \"updated\" }" << endl;
     }
-    else if (command == "delete_user") {
-        if (argc < 3) return 1;
+    else if (command == "delete_user")
+    {
+        if (argc < 3)
+            return 1;
         graph.deleteUser(stoi(argv[2]));
         cout << "{ \"status\": \"deleted\" }" << endl;
     }
-    else if (command == "send_request") {
-        if (argc < 4) return 1;
+    else if (command == "send_request")
+    {
+        if (argc < 4)
+            return 1;
         string status = graph.sendConnectionRequest(stoi(argv[2]), stoi(argv[3]));
         cout << "{ \"status\": \"" << status << "\" }" << endl;
     }
-    else if (command == "accept_request") {
-        if (argc < 4) return 1;
+    else if (command == "accept_request")
+    {
+        if (argc < 4)
+            return 1;
         graph.acceptConnectionRequest(stoi(argv[2]), stoi(argv[3]));
         cout << "{ \"status\": \"accepted\" }" << endl;
     }
-    else if (command == "decline_request") {
-        if (argc < 4) return 1;
+    else if (command == "decline_request")
+    {
+        if (argc < 4)
+            return 1;
         graph.declineConnectionRequest(stoi(argv[2]), stoi(argv[3]));
         cout << "{ \"status\": \"declined\" }" << endl;
     }
-    else if (command == "get_pending_requests") {
-        if (argc < 3) return 1;
+    else if (command == "get_pending_requests")
+    {
+        if (argc < 3)
+            return 1;
         cout << graph.getPendingRequestsJSON(stoi(argv[2])) << endl;
     }
-    else if (command == "get_relationship") {
-        if (argc < 4) return 1;
+    else if (command == "get_relationship")
+    {
+        if (argc < 4)
+            return 1;
         cout << "{ \"status\": \"" << graph.getRelationshipStatus(stoi(argv[2]), stoi(argv[3])) << "\" }" << endl;
     }
-    else if (command == "get_friends") {
-        if (argc < 3) return 1;
+    else if (command == "get_friends")
+    {
+        if (argc < 3)
+            return 1;
         cout << graph.getFriendListJSON(stoi(argv[2])) << endl;
     }
-    else if (command == "create_community") {
-        if (argc < 7) return 1;
+    else if (command == "create_community")
+    {
+        if (argc < 7)
+            return 1;
         graph.createCommunity(argv[2], argv[3], argv[4], stoi(argv[5]), argv[6]);
         graph.saveData();
         cout << "{ \"status\": \"success\" }" << endl;
     }
-    else if (command == "get_all_communities") {
+    else if (command == "get_all_communities")
+    {
         cout << graph.getAllCommunitiesJSON() << endl;
     }
-    else if (command == "join_community") {
-        if (argc < 4) return 1;
+    else if (command == "join_community")
+    {
+        if (argc < 4)
+            return 1;
         graph.joinCommunity(stoi(argv[2]), stoi(argv[3]));
         graph.saveData();
         cout << "{ \"status\": \"joined\" }" << endl;
     }
-    else if (command == "leave_community") {
-        if (argc < 4) return 1;
+    else if (command == "leave_community")
+    {
+        if (argc < 4)
+            return 1;
         graph.leaveCommunity(stoi(argv[2]), stoi(argv[3]));
         graph.saveData();
         cout << "{ \"status\": \"left\" }" << endl;
     }
-    else if (command == "get_community") {
+    else if (command == "get_community")
+    {
         int offset = (argc > 4) ? stoi(argv[4]) : 0;
         int limit = (argc > 5) ? stoi(argv[5]) : 50;
         cout << graph.getCommunityDetailsJSON(stoi(argv[2]), stoi(argv[3]), offset, limit) << endl;
     }
-    else if (command == "get_community_members") { 
-        if (argc < 3) return 1;
+    else if (command == "get_community_members")
+    {
+        if (argc < 3)
+            return 1;
         cout << graph.getCommunityMembersJSON(stoi(argv[2])) << endl;
     }
-     else if (command == "send_message") {
-        if (argc < 8) return 1; // Expected 8 args now
-        
+    else if (command == "send_message")
+    {
+        if (argc < 8)
+            return 1; // Expected 8 args now
+
         int replyId = stoi(argv[4]);
         string type = argv[5];
         string mediaUrl = resolveArg(argv[6]); // FIX: Resolve file pointer
         string content = argv[7];
-        
-        for (int i = 8; i < argc; ++i) content += " " + string(argv[i]);
-        
+
+        for (int i = 8; i < argc; ++i)
+            content += " " + string(argv[i]);
+
         graph.addMessage(stoi(argv[2]), stoi(argv[3]), content, type, mediaUrl, replyId);
         cout << "{ \"status\": \"sent\" }" << endl;
     }
-    else if (command == "search_users") {
+    else if (command == "search_users")
+    {
         string q = (argc > 2) ? argv[2] : "";
         string t = (argc > 3) ? argv[3] : "All";
         cout << graph.searchUsersJSON(q, t) << endl;
     }
-	else if (command == "remove_friend") {
-        if (argc < 4) return 1;
+    else if (command == "remove_friend")
+    {
+        if (argc < 4)
+            return 1;
         graph.removeFriendship(stoi(argv[2]), stoi(argv[3]));
         cout << "{ \"status\": \"removed\" }" << endl;
     }
-    else if (command == "get_popular") {
+    else if (command == "get_popular")
+    {
         cout << graph.getPopularCommunitiesJSON() << endl;
     }
-    else if (command == "get_visual_graph") {
+    else if (command == "get_visual_graph")
+    {
         cout << graph.getGraphVisualJSON() << endl;
     }
-    else if (command == "vote_message") {
-        if (argc < 5) return 1;
+    else if (command == "vote_message")
+    {
+        if (argc < 5)
+            return 1;
         graph.upvoteMessage(stoi(argv[2]), stoi(argv[3]), stoi(argv[4]));
         cout << "{ \"status\": \"voted\" }" << endl;
     }
-    else if (command == "mod_ban") {
-        if (argc < 5) return 1;
+    else if (command == "mod_ban")
+    {
+        if (argc < 5)
+            return 1;
         graph.banUser(stoi(argv[2]), stoi(argv[3]), stoi(argv[4]));
         cout << "{ \"status\": \"banned\" }" << endl;
     }
-    else if (command == "mod_unban") {
-        if (argc < 5) return 1;
+    else if (command == "mod_unban")
+    {
+        if (argc < 5)
+            return 1;
         graph.unbanUser(stoi(argv[2]), stoi(argv[3]), stoi(argv[4]));
         cout << "{ \"status\": \"unbanned\" }" << endl;
     }
-    else if (command == "mod_delete") {
-        if (argc < 5) return 1;
+    else if (command == "mod_delete")
+    {
+        if (argc < 5)
+            return 1;
         graph.deleteMessage(stoi(argv[2]), stoi(argv[3]), stoi(argv[4]));
         cout << "{ \"status\": \"deleted\" }" << endl;
     }
-    else if (command == "mod_pin") {
-        if (argc < 5) return 1;
+    else if (command == "mod_pin")
+    {
+        if (argc < 5)
+            return 1;
         graph.pinMessage(stoi(argv[2]), stoi(argv[3]), stoi(argv[4]));
         cout << "{ \"status\": \"pinned\" }" << endl;
     }
-    else if (command == "mod_promote_admin") {
-        if (argc < 5) return 1;
+    else if (command == "mod_promote_admin")
+    {
+        if (argc < 5)
+            return 1;
         graph.promoteToAdmin(stoi(argv[2]), stoi(argv[3]), stoi(argv[4]));
         cout << "{ \"status\": \"promoted\" }" << endl;
     }
-    else if (command == "mod_demote_admin") {
-        if (argc < 5) return 1;
+    else if (command == "mod_demote_admin")
+    {
+        if (argc < 5)
+            return 1;
         graph.demoteAdmin(stoi(argv[2]), stoi(argv[3]), stoi(argv[4]));
         cout << "{ \"status\": \"demoted\" }" << endl;
     }
-    else if (command == "mod_transfer") {
-        if (argc < 5) return 1;
+    else if (command == "mod_transfer")
+    {
+        if (argc < 5)
+            return 1;
         graph.transferOwnership(stoi(argv[2]), stoi(argv[3]), stoi(argv[4]));
         cout << "{ \"status\": \"transferred\" }" << endl;
     }
-    else if (command == "send_dm") {
-        if (argc < 8) return 1;
-        
+    else if (command == "send_dm")
+    {
+        if (argc < 8)
+            return 1;
+
         int replyId = stoi(argv[4]);
         string type = argv[5];
-        
+
         // CRITICAL: Resolve the file argument to actual data
-        string mediaUrl = resolveArg(argv[6]); 
-        
+        string mediaUrl = resolveArg(argv[6]);
+
         string content = argv[7];
-        for (int i = 8; i < argc; ++i) content += " " + string(argv[i]);
-        
+        for (int i = 8; i < argc; ++i)
+            content += " " + string(argv[i]);
+
         graph.sendDirectMessage(stoi(argv[2]), stoi(argv[3]), content, replyId, type, mediaUrl);
         cout << "{ \"status\": \"sent\" }" << endl;
     }
-    else if (command == "get_dm") {
-        if (argc < 4) return 1;
+    else if (command == "get_dm")
+    {
+        if (argc < 4)
+            return 1;
         int offset = (argc > 4) ? stoi(argv[4]) : 0;
         int limit = (argc > 5) ? stoi(argv[5]) : 50;
         cout << graph.getDirectChatJSON(stoi(argv[2]), stoi(argv[3]), offset, limit) << endl;
     }
-    else if (command == "delete_dm") {
-        if (argc < 5) return 1;
+    else if (command == "delete_dm")
+    {
+        if (argc < 5)
+            return 1;
         graph.deleteDirectMessage(stoi(argv[2]), stoi(argv[3]), stoi(argv[4]));
         cout << "{ \"status\": \"deleted\" }" << endl;
     }
-    else if (command == "react_dm") {
-        if (argc < 6) return 1;
+    else if (command == "react_dm")
+    {
+        if (argc < 6)
+            return 1;
         graph.reactToDirectMessage(stoi(argv[2]), stoi(argv[3]), stoi(argv[4]), argv[5]);
         cout << "{ \"status\": \"reacted\" }" << endl;
     }
-    else if (command == "get_my_dms") {
-        if (argc < 3) return 1;
+    else if (command == "get_my_dms")
+    {
+        if (argc < 3)
+            return 1;
         cout << graph.getActiveDMsJSON(stoi(argv[2])) << endl;
     }
-    else if (command == "create_poll") {
-        if (argc < 6) return 1;
+    else if (command == "create_poll")
+    {
+        if (argc < 6)
+            return 1;
         string question = argv[4];
         bool multi = (string(argv[5]) == "1");
         vector<string> options;
-        for(int i=6; i<argc; i++) options.push_back(argv[i]);
+        for (int i = 6; i < argc; i++)
+            options.push_back(argv[i]);
         graph.createPoll(stoi(argv[2]), stoi(argv[3]), question, multi, options);
         cout << "{ \"status\": \"poll_created\" }" << endl;
     }
-    else if (command == "vote_poll") {
-        if (argc < 6) return 1;
+    else if (command == "vote_poll")
+    {
+        if (argc < 6)
+            return 1;
         graph.togglePollVote(stoi(argv[2]), stoi(argv[3]), stoi(argv[4]), stoi(argv[5]));
         cout << "{ \"status\": \"voted\" }" << endl;
     }
-	else if (command == "get_my_communities") {
-		if (argc < 3) return 1;
-		cout << graph.getJoinedCommunitiesJSON(stoi(argv[2])) << endl;
-	}
-    else {
+    else if (command == "get_my_communities")
+    {
+        if (argc < 3)
+            return 1;
+        cout << graph.getJoinedCommunitiesJSON(stoi(argv[2])) << endl;
+    }
+    else if (command == "get_user_recs")
+    {
+        if (argc < 3)
+            return 1;
+        cout << graph.getSmartUserRecommendations(stoi(argv[2])) << endl;
+    }
+    else if (command == "get_recommendations")
+    {
+        // Alias for frontend compatibility: BFS-style (2nd/3rd degree) user recommendations
+        if (argc < 3)
+            return 1;
+        cout << graph.getSmartUserRecommendations(stoi(argv[2])) << endl;
+    }
+    else if (command == "get_comm_recs")
+    {
+        if (argc < 3)
+            return 1;
+        cout << graph.getSmartCommunityRecommendations(stoi(argv[2])) << endl;
+    }
+    else if (command == "nav_push")
+    {
+        graph.navPush(stoi(argv[2]), argv[3]);
+        cout << "{ \"status\": \"pushed\" }" << endl;
+    }
+    else if (command == "nav_back")
+    {
+        cout << "{ \"tab\": \"" << graph.navBack(stoi(argv[2])) << "\" }" << endl;
+    }
+    else if (command == "nav_forward")
+    {
+        cout << "{ \"tab\": \"" << graph.navForward(stoi(argv[2])) << "\" }" << endl;
+    }
+    else
+    {
         cout << "{ \"error\": \"Unknown command\" }" << endl;
     }
 

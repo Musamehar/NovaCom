@@ -1,0 +1,15 @@
+B|home
+B|comm_100
+B|explore_users
+B|profile_4
+B|home
+B|comm_100
+B|home
+B|explore_users
+B|explore_comms
+B|comm_101
+B|home
+B|comm_101
+B|explore_comms
+B|home
+B|map
