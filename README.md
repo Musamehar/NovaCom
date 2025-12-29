@@ -24,30 +24,31 @@
 
 ```
 NovaCom/
-├── frontend/                          # 🎨 React Frontend Application
-│   └── src/
-│       ├── assets/                    # Images, fonts, and static files
-│       ├── components/                # Reusable React components
-│       ├── hooks/                     # Custom React hooks
-│       ├── App.jsx                    # Main App component
-│       ├── api.js                     # API integration module
-│       ├── App.css                    # App-wide styles
-│       ├── index.css                  # Global styles
-│       ├── main.jsx                   # Application entry point
-│       └── public/                    # Static public assets
-│
-├── backend/                           # ⚙️ C++ Backend Service
-│   └── src/
-│       ├── include/                   # Header files
-│       └── data/                      # Data processing modules
-│
-├── NovaComBridge/                     # 🌉 Node.js Server Gateway
-│   ├── server.js                      # Express/Node.js server
-│   └── package.json                   # Node.js dependencies
-│
-└── README.md                          # This file
-
-```
+├── NovaComBridge/           # Intermediate bridge service
+│   ├── #00F0FF}             # Configuration or log fragment (unique name)
+│   ├── #6C63FF}             # Configuration or log fragment (unique name)
+│   ├── package-lock.json
+│   ├── package.json         # Node.js dependencies for the bridge
+│   ├── resizeObserver...    # Likely a script or temp file
+│   ├── server.js            # Entry point for the bridge service
+│   └── {                    # Potential config or malformed filename
+├── backend/                 # Backend service logic
+│   ├── data/                # Database or local JSON storage files
+│   ├── include/             # Shared logic or definitions
+│   ├── src/                 # Main backend source code
+│   └── run.bat              # Windows execution script
+├── frontend/                # Web interface (Vite/React/Tailwind)
+│   ├── public/              # Static assets (favicon, etc.)
+│   ├── src/                 # React components and logic
+│   ├── .gitignore           # Frontend-specific ignores
+│   ├── eslint.config.js     # Linting rules
+│   ├── index.html           # Main HTML entry point
+│   ├── package.json         # Frontend dependencies (Vite/React)
+│   ├── postcss.config.js    # Styling configuration
+│   ├── tailwind.config.js   # UI framework configuration
+│   └── vite.config.js       # Build tool configuration
+├── .gitignore               # Root-level git exclusions
+└── README.md                # General project documentation
 
 ---
 
@@ -429,7 +430,6 @@ app.listen(PORT, () => {
         <sub><b>Musamehar</b></sub>
       </a>
       <br />
-      <sub>👨‍💻 Full Stack Developer</sub>
     </td>
     <td align="center">
       <a href="https://github.com/radiushere">
@@ -438,7 +438,6 @@ app.listen(PORT, () => {
         <sub><b>radiushere</b></sub>
       </a>
       <br />
-      <sub>🛠️ Backend Engineer</sub>
     </td>
   </tr>
 </table>
@@ -464,7 +463,7 @@ For support, email support@novacom.dev or open an [Issue](https://github.com/Mus
 
 <div align="center">
 
-**Made with ❤️ by the NovaCom Team**
+**Made with ❤️**
 
 ⭐ If you found this helpful, please consider giving us a star!
 
