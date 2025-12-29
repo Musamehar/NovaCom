@@ -448,9 +448,9 @@ app.listen(PORT, () => {
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 💬 Support
+## 💬 Issue
 
-For support, email support@novacom.dev or open an [Issue](https://github.com/Musamehar/NovaCom/issues).
+For [Issue](https://github.com/Musamehar/NovaCom/issues).
 
 ## 🌟 Acknowledgments
 
