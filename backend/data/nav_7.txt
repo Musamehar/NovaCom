@@ -13,3 +13,8 @@ B|comm_101
 B|explore_comms
 B|home
 B|map
+B|home
+B|inbox
+B|home
+B|inbox
+B|dm_3_Man

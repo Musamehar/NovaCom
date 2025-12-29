@@ -6,22 +6,20 @@
 
 using namespace std;
 
-// --- Helper to handle Large Arguments passed as Files ---
 string resolveArg(string arg)
 {
     if (arg.rfind("FILE:", 0) == 0)
     {
-        string path = arg.substr(5);      // Remove "FILE:"
-        ifstream file(path, ios::binary); // Binary mode is safer for weird chars
+        string path = arg.substr(5);
+        ifstream file(path, ios::binary);
         if (file.is_open())
         {
             stringstream buffer;
             buffer << file.rdbuf();
-            return buffer.str(); // Return the Base64 content
+            return buffer.str();
         }
         else
         {
-            // Log error to stderr (Node.js will see this in console)
             cerr << "[C++ Error] Failed to open temp file: " << path << endl;
         }
     }
@@ -168,11 +166,11 @@ int main(int argc, char *argv[])
     else if (command == "send_message")
     {
         if (argc < 8)
-            return 1; // Expected 8 args now
+            return 1;
 
         int replyId = stoi(argv[4]);
         string type = argv[5];
-        string mediaUrl = resolveArg(argv[6]); // FIX: Resolve file pointer
+        string mediaUrl = resolveArg(argv[6]);
         string content = argv[7];
 
         for (int i = 8; i < argc; ++i)
@@ -266,7 +264,6 @@ int main(int argc, char *argv[])
         int replyId = stoi(argv[4]);
         string type = argv[5];
 
-        // CRITICAL: Resolve the file argument to actual data
         string mediaUrl = resolveArg(argv[6]);
 
         string content = argv[7];
@@ -337,7 +334,6 @@ int main(int argc, char *argv[])
     }
     else if (command == "get_recommendations")
     {
-        // Alias for frontend compatibility: BFS-style (2nd/3rd degree) user recommendations
         if (argc < 3)
             return 1;
         cout << graph.getSmartUserRecommendations(stoi(argv[2])) << endl;

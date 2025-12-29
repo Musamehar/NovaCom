@@ -10,10 +10,6 @@
 
 using namespace std;
 
-// ==========================================
-// HELPERS
-// ==========================================
-
 int safeStoi(string s)
 {
     if (s.empty())
@@ -37,7 +33,6 @@ string getCurrentTime()
     return string(buffer);
 }
 
-// Global Split Function (Used by Class and Helpers)
 vector<string> globalSplit(const string &s, char delimiter)
 {
     vector<string> tokens;
@@ -84,13 +79,12 @@ string jsonEscape(const string &s)
 
 string sanitize(string input)
 {
-    replace(input.begin(), input.end(), '\n', ' '); // Remove Newlines
-    replace(input.begin(), input.end(), '\r', ' '); // Remove Carriage Returns
-    replace(input.begin(), input.end(), '|', ' ');  // Remove Pipes
+    replace(input.begin(), input.end(), '\n', ' ');
+    replace(input.begin(), input.end(), '\r', ' ');
+    replace(input.begin(), input.end(), '|', ' ');
     return input;
 }
 
-// --- Poll Parsers (Now using globalSplit) ---
 string serializePoll(const PollData &p)
 {
     string s = sanitize(p.question) + "|" + (p.allowMultiple ? "1" : "0") + "|";
@@ -146,11 +140,6 @@ PollData parsePoll(string s)
     return p;
 }
 
-// ==========================================
-// PERSISTENCE (Merged Logic)
-// ==========================================
-
-// Bridge function for Class to use Global Split
 vector<string> NovaGraph::split(const string &s, char delimiter)
 {
     return globalSplit(s, delimiter);
@@ -160,7 +149,6 @@ void NovaGraph::loadData()
 {
     string line;
 
-    // 1. Users
     ifstream userFile("data/users.txt");
     if (userFile.is_open())
     {
@@ -197,7 +185,6 @@ void NovaGraph::loadData()
         userFile.close();
     }
 
-    // 2. Graph
     ifstream graphFile("data/graph.txt");
     if (graphFile.is_open())
     {
@@ -219,7 +206,6 @@ void NovaGraph::loadData()
         graphFile.close();
     }
 
-    // 3. Communities
     ifstream commFile("data/communities.txt");
     if (commFile.is_open())
     {
@@ -288,7 +274,6 @@ void NovaGraph::loadData()
         commFile.close();
     }
 
-    // 4. Chats
     ifstream chatFile("data/chats.txt");
     if (chatFile.is_open())
     {
@@ -296,8 +281,6 @@ void NovaGraph::loadData()
         {
             auto parts = split(line, '|');
 
-            // Check for format version (Old=9/10 fields, New=11 fields)
-            // We'll use a flexible approach
             if (parts.size() >= 10)
             {
                 int commId = safeStoi(parts[0]);
@@ -325,7 +308,6 @@ void NovaGraph::loadData()
 
                     int contentIdx = 9;
 
-                    // IF NEW FORMAT (Has MediaUrl at index 9)
                     if (parts.size() >= 11)
                     {
                         m.mediaUrl = parts[9];
@@ -333,10 +315,9 @@ void NovaGraph::loadData()
                     }
                     else
                     {
-                        m.mediaUrl = ""; // Legacy
+                        m.mediaUrl = "";
                     }
 
-                    // Content is the rest
                     string rawContent = parts[contentIdx];
                     for (size_t i = contentIdx + 1; i < parts.size(); i++)
                         rawContent += "|" + parts[i];
@@ -360,7 +341,6 @@ void NovaGraph::loadData()
         chatFile.close();
     }
 
-    // 5. DMs
     ifstream dmFile("data/dms.txt");
     if (dmFile.is_open())
     {
@@ -369,7 +349,6 @@ void NovaGraph::loadData()
         {
             auto parts = split(line, '|');
 
-            // Check for Legacy Format (Size 8) vs New Format (Size 10)
             if (parts.size() >= 8)
             {
                 string key = parts[0];
@@ -381,9 +360,8 @@ void NovaGraph::loadData()
                 m.reaction = (parts[5] == "NONE") ? "" : parts[5];
                 m.isSeen = (parts[6] == "1");
 
-                int contentIdx = 7; // Default for legacy
+                int contentIdx = 7;
 
-                // NEW FORMAT HANDLING
                 if (parts.size() >= 10)
                 {
                     m.type = parts[7];
@@ -392,13 +370,11 @@ void NovaGraph::loadData()
                 }
                 else
                 {
-                    // Default values for old messages
                     m.type = "text";
                     m.mediaUrl = "";
                 }
 
                 m.content = parts[contentIdx];
-                // Reassemble content if pipes existed
                 for (size_t i = contentIdx + 1; i < parts.size(); i++)
                     m.content += " " + parts[i];
 
@@ -414,7 +390,6 @@ void NovaGraph::loadData()
 
 void NovaGraph::saveData()
 {
-    // 1. Save Users (Preserving Pending Requests)
     ofstream userFile("data/users.txt");
     for (auto const &[id, u] : userDB)
     {
@@ -439,7 +414,6 @@ void NovaGraph::saveData()
     }
     userFile.close();
 
-    // 2. Save Graph
     ofstream graphFile("data/graph.txt");
     for (auto &[id, friends] : adjList)
     {
@@ -452,7 +426,6 @@ void NovaGraph::saveData()
     }
     graphFile.close();
 
-    // 3. Save Communities (With Admins)
     ofstream commFile("data/communities.txt");
     for (auto const &[id, c] : communityDB)
     {
@@ -511,7 +484,6 @@ void NovaGraph::saveData()
     }
     commFile.close();
 
-    // 4. Save Chats (Updated format with Type and ReplyID)
     ofstream chatFile("data/chats.txt");
     for (auto const &[commId, comm] : communityDB)
     {
@@ -539,7 +511,7 @@ void NovaGraph::saveData()
                      << (msg.isPinned ? "1" : "0") << "|"
                      << msg.replyToId << "|"
                      << msg.type << "|"
-                     // NEW FIELD: MediaUrl
+
                      << (msg.mediaUrl.empty() ? "NONE" : sanitize(msg.mediaUrl)) << "|";
 
             if (msg.type == "poll")
@@ -552,7 +524,6 @@ void NovaGraph::saveData()
     }
     chatFile.close();
 
-    // 5. Save DMs
     ofstream dmOut("data/dms.txt");
     for (auto const &[key, chat] : dmDB)
     {
@@ -566,17 +537,12 @@ void NovaGraph::saveData()
                   << (m.reaction.empty() ? "NONE" : m.reaction) << "|"
                   << (m.isSeen ? "1" : "0") << "|"
                   << m.type << "|"
-                  // FIX: Sanitize mediaUrl to remove newlines
                   << (m.mediaUrl.empty() ? "NONE" : sanitize(m.mediaUrl)) << "|"
                   << sanitize(m.content) << "\n";
         }
     }
     dmOut.close();
 }
-
-// ==========================================
-// CONNECTION LOGIC (INVITE SYSTEM)
-// ==========================================
 
 string NovaGraph::sendConnectionRequest(int senderId, int targetId)
 {
@@ -656,10 +622,6 @@ string NovaGraph::getRelationshipStatus(int me, int target)
     return "none";
 }
 
-// ==========================================
-// CORE LOGIC & DMs
-// ==========================================
-
 void NovaGraph::sendDirectMessage(int senderId, int receiverId, string content, int replyToId, string type, string mediaUrl)
 {
     string key = getDMKey(senderId, receiverId);
@@ -673,7 +635,6 @@ void NovaGraph::sendDirectMessage(int senderId, int receiverId, string content, 
     m.reaction = "";
     m.isSeen = false;
     m.type = type;
-    // FIX: Sanitize incoming mediaUrl immediately
     m.mediaUrl = (mediaUrl.empty() ? "NONE" : sanitize(mediaUrl));
 
     dmDB[key].chatKey = key;
@@ -702,7 +663,6 @@ string NovaGraph::getDirectChatJSON(int viewerId, int friendId, int offset, int 
 {
     string key = getDMKey(viewerId, friendId);
 
-    // Mark Seen
     bool stateChanged = false;
     if (dmDB.find(key) != dmDB.end())
     {
@@ -745,7 +705,6 @@ string NovaGraph::getDirectChatJSON(int viewerId, int friendId, int offset, int 
             {
                 if (orig.id == m.replyToMsgId)
                 {
-                    // Preview content: if image, say [Image], else text
                     string previewText = (orig.type == "image") ? "[Image]" : orig.content;
                     replyPreview = sanitize(previewText.substr(0, 30));
                     break;
@@ -782,13 +741,12 @@ void NovaGraph::deleteDirectMessage(int userId, int friendId, int msgId)
         {
             if (it->id == msgId)
             {
-                // Security Check: Only the sender can delete their own message
                 if (it->senderId == userId)
                 {
                     msgs.erase(it);
-                    saveData(); // Persist changes
+                    saveData();
                 }
-                return; // Stop after finding/deleting
+                return;
             }
         }
     }
@@ -839,13 +797,11 @@ string NovaGraph::getActiveDMsJSON(int userId)
 
 void NovaGraph::removeFriendship(int u, int v)
 {
-    // Remove v from u's list
     if (adjList.find(u) != adjList.end())
     {
         auto &friends = adjList[u];
         friends.erase(remove(friends.begin(), friends.end(), v), friends.end());
     }
-    // Remove u from v's list
     if (adjList.find(v) != adjList.end())
     {
         auto &friends = adjList[v];
@@ -853,10 +809,6 @@ void NovaGraph::removeFriendship(int u, int v)
     }
     saveData();
 }
-
-// ==========================================
-// USER & GRAPH LOGIC
-// ==========================================
 
 int NovaGraph::registerUser(string username, string email, string password, string avatar, string tags)
 {
@@ -995,7 +947,6 @@ void NovaGraph::leaveCommunity(int userId, int commId)
     }
 }
 
-// UPDATED addMessage (With Type and ReplyID)
 void NovaGraph::addMessage(int commId, int senderId, string content, string type, string mediaUrl, int replyToId)
 {
     if (communityDB.find(commId) != communityDB.end())
@@ -1021,7 +972,6 @@ void NovaGraph::addMessage(int commId, int senderId, string content, string type
     }
 }
 
-// NEW: Vote Poll
 void NovaGraph::votePoll(int commId, int userId, int msgIndex, int optionIndex)
 {
     if (communityDB.find(commId) != communityDB.end())
@@ -1055,10 +1005,6 @@ void NovaGraph::votePoll(int commId, int userId, int msgIndex, int optionIndex)
         }
     }
 }
-
-// ==========================================
-// MODERATION & ADMIN
-// ==========================================
 
 void NovaGraph::promoteToAdmin(int commId, int actorId, int targetId)
 {
@@ -1217,10 +1163,6 @@ void NovaGraph::upvoteMessage(int commId, int userId, int msgIndex)
     }
 }
 
-// ==========================================
-// POLL LOGIC
-// ==========================================
-
 void NovaGraph::createPoll(int commId, int senderId, string question, bool allowMultiple, vector<string> options)
 {
     if (communityDB.find(commId) != communityDB.end())
@@ -1287,10 +1229,6 @@ void NovaGraph::togglePollVote(int commId, int userId, int msgId, int optionId)
         }
     }
 }
-
-// ==========================================
-// JSON RESPONSES
-// ==========================================
 
 string NovaGraph::getCommunityMembersJSON(int commId)
 {
@@ -1381,7 +1319,6 @@ string NovaGraph::getAllCommunitiesJSON()
     return json;
 }
 
-// UPDATED getCommunityDetailsJSON (With Types and Replies)
 string NovaGraph::getCommunityDetailsJSON(int commId, int userId, int offset, int limit)
 {
     if (communityDB.find(commId) == communityDB.end())
@@ -1414,7 +1351,6 @@ string NovaGraph::getCommunityDetailsJSON(int commId, int userId, int offset, in
         if (userDB.find(m.senderId) != userDB.end())
             avatar = userDB[m.senderId].avatarUrl;
 
-        // Poll JSON
         string pollJson = "null";
         if (m.type == "poll")
         {
@@ -1473,7 +1409,6 @@ string NovaGraph::getJoinedCommunitiesJSON(int userId)
 
     for (auto const &[id, c] : communityDB)
     {
-        // ONLY add to JSON if the user is actually in the members set
         if (c.members.count(userId))
         {
             if (count > 0)
@@ -1531,19 +1466,23 @@ string NovaGraph::getRecommendationsJSON(int userId)
     if (adjList.find(userId) == adjList.end())
         return "[]";
     map<int, int> frequencyMap;
+
     const vector<int> &myFriends = adjList[userId];
     set<int> existingFriends(myFriends.begin(), myFriends.end());
     existingFriends.insert(userId);
+
     for (int friendId : myFriends)
         for (int candidate : adjList[friendId])
             if (existingFriends.find(candidate) == existingFriends.end())
                 frequencyMap[candidate]++;
     vector<pair<int, int>> candidates;
+
     for (auto const &[id, count] : frequencyMap)
         candidates.push_back({id, count});
     sort(candidates.begin(), candidates.end(), [](const pair<int, int> &a, const pair<int, int> &b)
          { return a.second > b.second; });
     string json = "[";
+
     for (size_t i = 0; i < candidates.size(); ++i)
     {
         int id = candidates[i].first;
@@ -1566,7 +1505,6 @@ string NovaGraph::getGraphVisualJSON()
             json += ", ";
         int friendCount = adjList[id].size();
 
-        // ADDED "avatar" field here
         json += "{ \"id\": " + to_string(id) +
                 ", \"name\": \"" + jsonEscape(u.username) + "\"" +
                 ", \"avatar\": \"" + jsonEscape(u.avatarUrl) + "\"" +
@@ -1673,13 +1611,6 @@ string NovaGraph::getPopularCommunitiesJSON()
     return json;
 }
 
-// 1. SMART USER RECOMMENDER (Mutual Friend Count Logic)
-
-// Helper to get distances for a user up to 3 degrees
-// Returns map of {UserID -> Distance}
-
-// Helper to get distances for a user up to 3 degrees
-// Returns map of {UserID -> Distance}
 map<int, int> NovaGraph::getDistancesBFS(int startId)
 {
     map<int, int> distances;
@@ -1711,7 +1642,6 @@ map<int, int> NovaGraph::getDistancesBFS(int startId)
     return distances;
 }
 
-// 1. ADVANCED USER RECOMMENDER (2nd & 3rd Degree)
 string NovaGraph::getSmartUserRecommendations(int userId)
 {
     map<int, int> distMap = getDistancesBFS(userId);
@@ -1719,14 +1649,12 @@ string NovaGraph::getSmartUserRecommendations(int userId)
 
     for (auto const &[targetId, dist] : distMap)
     {
-        // RULE: Skip self (0) and existing friends (1)
         if (dist == 0 || dist == 1)
             continue;
 
         if (dist == 2)
         {
-            scoreMap[targetId] += 10.0; // Base score for 2nd degree
-            // Add 2 points for every mutual friend
+            scoreMap[targetId] += 10.0;
             for (int f : adjList[userId])
             {
                 const auto &targetFriends = adjList[targetId];
@@ -1738,7 +1666,7 @@ string NovaGraph::getSmartUserRecommendations(int userId)
         }
         else if (dist == 3)
         {
-            scoreMap[targetId] += 2.0; // Base score for 3rd degree
+            scoreMap[targetId] += 2.0;
         }
     }
 
@@ -1765,7 +1693,6 @@ string NovaGraph::getSmartUserRecommendations(int userId)
     return json;
 }
 
-// 2. ADVANCED COMMUNITY RECOMMENDER (1st, 2nd, & 3rd Degree Influence)
 string NovaGraph::getSmartCommunityRecommendations(int userId)
 {
     map<int, int> distMap = getDistancesBFS(userId);
@@ -1774,18 +1701,15 @@ string NovaGraph::getSmartCommunityRecommendations(int userId)
     for (auto const &[memberId, dist] : distMap)
     {
         if (dist == 0)
-            continue; // dist 0 is you
+            continue;
 
-        // Points given to a community based on who in your network is in it
         double weight = (dist == 1) ? 5.0 : (dist == 2 ? 2.0 : 0.5);
 
         for (auto const &[commId, comm] : communityDB)
         {
-            // RULE: If YOU are already a member, do not recommend
             if (comm.members.count(userId))
                 continue;
 
-            // If a person in your network is a member, increase community score
             if (comm.members.count(memberId))
             {
                 commScores[commId] += weight;
@@ -1812,15 +1736,8 @@ string NovaGraph::getSmartCommunityRecommendations(int userId)
     return json;
 }
 
-// ==========================================
-// 1. NAVIGATOR (UNDO/REDO STACK ENGINE)
-// ==========================================
-
-// We store the stacks in a map so every user has their own history session
-// Key: UserId -> pair of <BackStack, ForwardStack>
 map<int, pair<vector<string>, vector<string>>> globalNavHistory;
 
-// Helper to save stacks to data/nav.txt
 void saveNav(int uid, vector<string> back, vector<string> forward)
 {
     ofstream f("data/nav_" + to_string(uid) + ".txt");
@@ -1830,7 +1747,6 @@ void saveNav(int uid, vector<string> back, vector<string> forward)
         f << "F|" << s << endl;
 }
 
-// Helper to load stacks
 pair<vector<string>, vector<string>> loadNav(int uid)
 {
     vector<string> b, f;
@@ -1856,7 +1772,7 @@ void NovaGraph::navPush(int userId, string tab)
     if (!back.empty() && back.back() == tab)
         return;
     back.push_back(tab);
-    saveNav(userId, back, {}); // New nav always clears forward stack
+    saveNav(userId, back, {});
 }
 
 string NovaGraph::navBack(int userId)
@@ -1867,7 +1783,7 @@ string NovaGraph::navBack(int userId)
 
     string current = back.back();
     back.pop_back();
-    forward.insert(forward.begin(), current); // Push to forward stack
+    forward.insert(forward.begin(), current);
     saveNav(userId, back, forward);
     return back.back();
 }

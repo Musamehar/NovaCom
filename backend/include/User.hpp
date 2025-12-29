@@ -5,7 +5,8 @@
 
 using namespace std;
 
-struct User {
+struct User
+{
     int id;
     string username;
     string email;
@@ -13,7 +14,6 @@ struct User {
     string avatarUrl;
     vector<string> tags;
     int karma = 0;
-    
-    // NEW: Stores IDs of users who want to be friends
-    unordered_set<int> pendingRequests; 
+
+    unordered_set<int> pendingRequests;
 };

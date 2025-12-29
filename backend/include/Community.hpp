@@ -6,21 +6,22 @@
 
 using namespace std;
 
-// 1. GLOBAL POLL STRUCTURES
-struct PollOption {
+struct PollOption
+{
     int id;
     string text;
-    set<int> voterIds; // Stores who voted (IDs)
+    set<int> voterIds;
 };
 
-struct PollData {
+struct PollData
+{
     string question;
     bool allowMultiple;
     vector<PollOption> options;
 };
 
-// 2. MESSAGE STRUCTURE
-struct Message {
+struct Message
+{
     int id = 0;
     int senderId;
     string senderName;
@@ -28,16 +29,16 @@ struct Message {
     string timestamp;
     set<int> upvoters;
     bool isPinned = false;
-    
-    int replyToId = -1; 
-    string type = "text"; // "text", "poll", "image"
-    string mediaUrl = ""; 
-    
-    // Poll Data Object
-    PollData poll; 
+
+    int replyToId = -1;
+    string type = "text";
+    string mediaUrl = "";
+
+    PollData poll;
 };
 
-struct Community {
+struct Community
+{
     int id;
     string name;
     string description;
@@ -45,10 +46,10 @@ struct Community {
     vector<string> tags;
     set<int> members;
     vector<Message> chatHistory;
-    
+
     set<int> moderators;
     set<int> admins;
     set<int> bannedUsers;
-    
+
     int nextMsgId = 1;
 };
